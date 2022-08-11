@@ -1,34 +1,3 @@
-#from twitchAPI.twitch import Twitch
-#from twitchAPI import AuthScope, UserAuthenticator, EventSub
-#import pprint
-#webhookUrl = "https://localhost:443"
-#appId = "sl93299ib6lfwbinc92z70tjdo07m9"
-#appSecret = "ai8pu1lwkhoqggi9u723ekpe3ijmo4"
-#
-#async def live():
-#    print("AAAAAAAAAAAAAAAAAAAAAAAAAA")
-#
-#twitch = Twitch(appId, appSecret)
-#twitch.authenticate_app([])
-#
-#streams = twitch.get_streams()
-#hook = EventSub(webhookUrl, appId, 8080, twitch)
-#hook.wait_for_subscription_confirm_timeout = 300
-#hook.unsubscribe_all()
-#
-#hook.start()
-#print("hooking...")
-#while True:
-#    try:
-#        hook.listen_stream_online("71092938", live)
-#    except:
-#        print("streamer seems to be offline", end="\r")
-#
-#try:
-#    input('press Enter to shut down...')
-#finally:
-#    hook.stop()
-
 import pickle
 import requests
 import time
@@ -39,10 +8,13 @@ import numpy as np
 import copy
 from scipy import stats
 from sklearn.metrics import r2_score
-#import openai
-#import os
 
 
+"""
+this code is for predicting the probability of xqc going live at a certain time of day
+it uses a polynomial regression model to predict the probability of the stream starting
+the model is trained on data from xqc stream history
+"""
 
 class LASTINPUTINFO(Structure):
     _fields_ = [
@@ -59,7 +31,10 @@ def get_idle_duration():
 
 def save():
     with open('data.pckl', 'wb') as file:
-        pickle.dump([week,alreadyStreamed],file)
+        pickle.dump([week, alreadyStreamed], file)
+
+
+    
 
 def graph(day):
     xpoints = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24]
@@ -112,8 +87,10 @@ def main():
             sunday = [su0, su1, su2, su3, su4, su5, su6, su7, su8, su9, su10, su11, su12, su13, su14, su15, su16, su17, su18, su19, su20, su21, su22, su23]
             week = [monday,tuesday,wednesday,thursday,friday,saturday,sunday]
             alreadyStreamed = [False,0]
+            save()
+    
         
-    alreadyStreamed = alreadyStreamed
+
     monday = week[0]
     tuesday = week[1]
     wednesday = week[2]
@@ -128,6 +105,8 @@ def main():
     [fr0, fr1, fr2, fr3, fr4, fr5, fr6, fr7, fr8, fr9, fr10, fr11, fr12, fr13, fr14, fr15, fr16, fr17, fr18, fr19, fr20, fr21, fr22, fr23] = friday
     [sa0, sa1, sa2, sa3, sa4, sa5, sa6, sa7, sa8, sa9, sa10, sa11, sa12, sa13, sa14, sa15, sa16, sa17, sa18, sa19, sa20, sa21, sa22, sa23] = saturday
     [su0, su1, su2, su3, su4, su5, su6, su7, su8, su9, su10, su11, su12, su13, su14, su15, su16, su17, su18, su19, su20, su21, su22, su23] = sunday
+
+
     
     cd0, cd1, cd2, cd3, cd4, cd5, cd6, cd7, cd8, cd9, cd10, cd11, cd12, cd13, cd14, cd15, cd16, cd17, cd18, cd19, cd20, cd21, cd22, cd23 = 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
     combinedDays = [cd0, cd1, cd2, cd3, cd4, cd5, cd6, cd7, cd8, cd9, cd10, cd11, cd12, cd13, cd14, cd15, cd16, cd17, cd18, cd19, cd20, cd21, cd22, cd23]
@@ -135,13 +114,13 @@ def main():
     for i in range(len(combinedDays)):
         resList.append(combinedDays[i]+monday[i]+tuesday[i]+wednesday[i]+thursday[i]+friday[i]+saturday[i]+sunday[i])
 
+    
 
-
-
+    channelName = 'xqc'
 
     while True:
         if afk == False:
-            userinput = input("(input / results / todaysresults / data / listen / console): ")
+            userinput = input("=>")
         if userinput == "input":
             while True:
                 dayInput = input("back / day: ")
@@ -190,13 +169,22 @@ def main():
                     except:
                         break
         elif userinput == "data":
-            print(week)
+            resList = []
+            for i in range(len(combinedDays)):
+                resList.append(combinedDays[i]+monday[i]+tuesday[i]+wednesday[i]+thursday[i]+friday[i]+saturday[i]+sunday[i])
+            print("/////WEEKDAYS/////")
+            for day in week:
+                print(day)
+            print("////WHOLE WEEK////")
+            print(resList)
+        
         elif userinput =="listen":
             live = True
+            counter = 0
             while True:
-                channelName = 'xqcow'
-                contents = requests.get('https://www.twitch.tv/' +channelName).content.decode('utf-8')
+                counter += 1
                 currenttime = time.struct_time(time.localtime())
+                currentminute = currenttime[4]
                 currenthour = currenttime[3]
                 currentday = currenttime[6]
                 if currentday == 0:
@@ -214,65 +202,77 @@ def main():
                 elif currentday == 6:
                     currentday2 = sunday
 
-                #alreadyStreamed = [False,currentday]
-                #save()
-                #print(alreadyStreamed)
-                if alreadyStreamed[0] == True and live == False and 'isLiveBroadcast' not in contents:
-                    alreadyStreamed = [True,currentday]
-                    save()
+
                 if alreadyStreamed[0] == True and alreadyStreamed[1] != currentday and live == False:
                     alreadyStreamed = [False,currentday]
                     save()
                 
+                contents = requests.get('https://www.twitch.tv/' +channelName).content.decode('utf-8')
+                title = ""
+                try:
+                    index = contents.find('description" content="') #len 22
+                    index += 23
+                    end_index = contents.find('"',index)
+                    for char in range(index, end_index):
+                        title += contents[char]
+                except Exception:
+                    pass
                 if 'isLiveBroadcast' in contents: 
                     if live == False:
-                        print(channelName + ' is live                                            ',end="\r")
-                        playsound.playsound("auughhh.mp3")
-                        currentday2[currenthour] +=1
-                        if currentday == 0:
-                            week[0] = monday
-                        elif currentday == 1:
-                            week[1] = tuesday
-                        elif currentday == 2:
-                            week[2] = wednesday
-                        elif currentday == 3:
-                            week[3] = thursday
-                        elif currentday == 4:
-                            week[4] = friday
-                        elif currentday == 5:
-                            week[5] = saturday
-                        elif currentday == 6:
-                            week[6] = sunday
-                        
-                        alreadyStreamed = [True,currentday]
-                        live = True
-                        save()
+                        if alreadyStreamed[0] == False:
+                            print(f"{channelName} is live                                            ",end="\r")
+                            playsound.playsound("auughhh.mp3")
+                            currentday2[currenthour] +=1
+                            if currentday == 0:
+                                week[0] = monday
+                            elif currentday == 1:
+                                week[1] = tuesday
+                            elif currentday == 2:
+                                week[2] = wednesday
+                            elif currentday == 3:
+                                week[3] = thursday
+                            elif currentday == 4:
+                                week[4] = friday
+                            elif currentday == 5:
+                                week[5] = saturday
+                            elif currentday == 6:
+                                week[6] = sunday
+                            
+                            alreadyStreamed = [True,currentday]
+                            
+                            live = True
+                            save()
+                            resList = []
+                            for i in range(len(combinedDays)):
+                                resList.append(combinedDays[i]+monday[i]+tuesday[i]+wednesday[i]+thursday[i]+friday[i]+saturday[i]+sunday[i])
                 
                 xpoints = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23]
                 ypoints = resList
 
-                model = np.poly1d(np.polyfit(xpoints,ypoints,3))
+                model = np.poly1d(np.polyfit(xpoints,ypoints,12))
                 line = np.linspace(0,23,100)
 
-                prediction = round((model(currenthour)/sum(resList))*100,1)
+                prediction = round((model(currenthour+currentminute/60)/sum(resList))*100,1)
+        
 
                 if 'isLiveBroadcast' in contents:
-                    print(channelName+" is live / avoiding misinput                                         ",end="\r")
+                    print(f"{channelName} is live / avoiding misinput / {title[:30]}...                                         ",end="\r")
                     alreadyStreamed = [True,currentday]
+                    streamEndHour = copy.copy(currenthour)
                     save()
 
                 elif alreadyStreamed[0] == True and alreadyStreamed[1] == currentday and live == False:
-                    print("already streamed today / chance of going live",prediction,"%                                                       ",end="\r")
-                    
+                    print(f"{channelName} already streamed today / overall probability {prediction}%                                                     ",end="\r")
+                    live = False
                 
                 else:
-                    print(channelName + ' is not live / chance of going live', prediction,"%                                                  ",end="\r")
-
+                    print(f"{channelName} is not live / overall probability {prediction}%                                                     ",end="\r")
                     live = False
                 
                 time.sleep(60)
         elif userinput == "todaysresults":
             currenttime = time.struct_time(time.localtime())
+            currentminute = currenttime[4]
             currentday = currenttime[6]
             currenthour = currenttime[3]
             if currentday == 0:
@@ -294,12 +294,14 @@ def main():
             xpoints = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23]
             ypoints = week[currentday]
 
-            model = np.poly1d(np.polyfit(xpoints,ypoints,3))
+            model = np.poly1d(np.polyfit(xpoints,ypoints,12))
             line = np.linspace(0,23,100)
 
-            prediction = round((model(currenthour)/sum(week[currentday]))*100,1)
-            print(prediction,"%")
-            #print(model(line))
+            prediction = round((model(currenthour+currentminute/60)/sum(week[currentday]))*100,1)
+            print(f"current odds:{prediction}%")
+
+            for j in range(len(xpoints)):
+                print(f"{str(j)}: {round((model(j)/sum(week[currentday]))*100,1)}%")
 
             print("accuracy:", r2_score(ypoints, model(xpoints)))
 
@@ -310,18 +312,27 @@ def main():
             plt.show()
         
         elif userinput == "results":
+            
             currenttime = time.struct_time(time.localtime())
+            currentminute = currenttime[4]
             currentday = currenttime[6]
             currenthour = currenttime[3]
+
+            resList = []
+            for i in range(len(combinedDays)):
+                resList.append(combinedDays[i]+monday[i]+tuesday[i]+wednesday[i]+thursday[i]+friday[i]+saturday[i]+sunday[i])
 
             xpoints = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23]
             ypoints = resList
 
-            model = np.poly1d(np.polyfit(xpoints,ypoints,3))
+            model = np.poly1d(np.polyfit(xpoints,ypoints,12))
             line = np.linspace(0,23,100)
 
-            prediction = round((model(currenthour)/sum(resList))*100,1)
-            print(prediction,"%")
+            prediction = round((model(currenthour+currentminute/60)/sum(resList))*100,1)
+            print(f"current odds: {prediction}%")
+
+            for j in range(len(xpoints)):
+                print(f"{str(j)}: {round((model(j)/sum(resList))*100,1)}%")
             #print(model(line))
 
             print("accuracy:", r2_score(ypoints, model(xpoints)))
@@ -330,6 +341,7 @@ def main():
             plt.plot(line,model(line))
             plt.grid()
             plt.show()
+            
         
         elif userinput =="console":
             while True:
@@ -338,15 +350,14 @@ def main():
                     print("graph(day)\nsave()\nback")
                     continue
                 try:
-                    eval(consoleInput)
+                    exec(consoleInput)
                 except:
-                    try:
-                        exec(consoleInput)
-                    except:
-                        if consoleInput == "back":
-                            break
-                        else:
-                            print("ran into a problem")
+                    if consoleInput == "back":
+                        break
+                    else:
+                        print("ran into a problem")
+        elif userinput =="help":
+            print("input\nresults\ntodaysresults\ndata\nlisten\nconsole")
 
 
 
