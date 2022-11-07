@@ -17,18 +17,27 @@ it uses a polynomial regression model to predict the probability of the stream s
 the model is trained on data from xqc stream history
 """
 
-
-weekstr = ["monday","tuesday","wednesday","thursday","friday","saturday","sunday"]
+TIMEDIFF = 3
+hour24 = [x for x in range(0,24)]
+WEEKSTR = ["monday","tuesday","wednesday","thursday","friday","saturday","sunday"]
 CHANNELNAME = 'xqc'
 
-
-logging.basicConfig(filename='log.txt', level=logging.ERROR, format='%(asctime)s %(levelname)s %(name)s %(message)s')
-logger=logging.getLogger(__name__)
+#setting up logs and disabling unnecessary loggers
+logging.basicConfig(filename='log.txt', level=logging.INFO, format='%(asctime)s %(levelname)s %(name)s %(message)s')
+logging.getLogger("urllib3.util.retry").disabled = True
+logging.getLogger("urllib3.util").disabled = True
+logging.getLogger("urllib3").disabled = True
+logging.getLogger("urllib3.connection").disabled = True
+logging.getLogger("urllib3.response").disabled = True
+logging.getLogger("urllib3.connectionpool").disabled = True
+logging.getLogger("urllib3.poolmanager").disabled = True
+logging.getLogger("requests").disabled = True
 
 
 def save():
     with open('data.pckl', 'wb') as file:
         pickle.dump([week, alreadyStreamed], file)
+        
         
 def predict(currenthour, currentminute, ypoints):
     
@@ -39,7 +48,7 @@ def predict(currenthour, currentminute, ypoints):
     line = np.linspace(0,23,100)
     
     #we use the module to get a prediction for the current time
-    prediction = round((model(currenthour+currentminute/60)/sum(resList))*100,1)
+    prediction = round((model(currenthour+currentminute/60)/sum(ypoints)*100),1)
     return prediction, line, model
 
 
@@ -51,28 +60,29 @@ def graph(isResList):
     currentday = currenttime[6]
     currenthour = currenttime[3]
     if not isResList:
-        currentdaytxt = weekstr[currentday]
+        currentdaytxt = WEEKSTR[currentday]
         mode = week[currentday]
     else:
         mode = resList
 
 
-    xpoints = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23]
+
     ypoints = mode
    
     prediction, line, model = predict(currenthour,currentminute,mode)
     print(f"current odds:{prediction}%")
 
-    for j in range(len(xpoints)):
+    for j in range(len(hour24)):
         print(f"{str(j)}: {round((model(j)/sum(mode))*100,1)}%")
 
-    print("accuracy:", r2_score(ypoints, model(xpoints)))
+    print("accuracy:", r2_score(ypoints, model(hour24)))
     if not isResList:
         plt.title(currentdaytxt)
-    plt.plot(xpoints,ypoints)
+    plt.plot(hour24,ypoints)
     plt.plot(line,model(line))
     plt.grid()
     plt.show()
+    
 
 def data():
     #calc resList again since it may have changed
@@ -80,12 +90,13 @@ def data():
             for i in range(len(combinedDays)):
                 resList.append(combinedDays[i]+week[0][i]+week[1][i]+week[2][i]+week[3][i]+week[4][i]+week[5][i]+week[6][i])
             print("/////WEEKDAYS/////")
-            for day in week:
-                print(day)
-            print("////WHOLE WEEK////")
+            for j, day in enumerate(week):
+                print(f"{WEEKSTR[j]}:  {' '*(len(WEEKSTR[2])-len(WEEKSTR[j]))}{day}")
+            print("////TOTAL////")
             print(resList)
+            return resList
             
-            
+          
 def datainput():
     #manually add logs to database
     run = True
@@ -94,8 +105,8 @@ def datainput():
         
         dayInput = input("day: ")
         for d in range(7):
-            for lenght in range(1,weekstr[d].__len__()):
-                if dayInput == weekstr[d][:lenght]:
+            for lenght in range(1,WEEKSTR[d].__len__()):
+                if dayInput == WEEKSTR[d][:lenght]:
                     day = week[d]
                     x = True
                     break
@@ -110,8 +121,9 @@ def datainput():
                 hour = int(input("hour: "))
                 day[hour] +=1
                 save()   
-            except ValueError:
+            except Exception:
                 break
+            
 
 def main():
     global week, userinput, alreadyStreamed, combinedDays, resList
@@ -121,23 +133,16 @@ def main():
     try:
         with open('data.pckl', 'rb') as file:
             [week,alreadyStreamed] = pickle.load(file)
-    except:
+    except Exception:
         if input("make new save? (y/n)")=="y":
-            mo0, mo1, mo2, mo3, mo4, mo5, mo6, mo7, mo8, mo9, mo10, mo11, mo12, mo13, mo14, mo15, mo16, mo17, mo18, mo19, mo20, mo21, mo22, mo23 = 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0   
-            tu0, tu1, tu2, tu3, tu4, tu5, tu6, tu7, tu8, tu9, tu10, tu11, tu12, tu13, tu14, tu15, tu16, tu17, tu18, tu19, tu20, tu21, tu22, tu23 = 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-            we0, we1, we2, we3, we4, we5, we6, we7, we8, we9, we10, we11, we12, we13, we14, we15, we16, we17, we18, we19, we20, we21, we22, we23 = 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-            th0, th1, th2, th3, th4, th5, th6, th7, th8, th9, th10, th11, th12, th13, th14, th15, th16, th17, th18, th19, th20, th21, th22, th23 = 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-            fr0, fr1, fr2, fr3, fr4, fr5, fr6, fr7, fr8, fr9, fr10, fr11, fr12, fr13, fr14, fr15, fr16, fr17, fr18, fr19, fr20, fr21, fr22, fr23 = 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-            sa0, sa1, sa2, sa3, sa4, sa5, sa6, sa7, sa8, sa9, sa10, sa11, sa12, sa13, sa14, sa15, sa16, sa17, sa18, sa19, sa20, sa21, sa22, sa23 = 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-            su0, su1, su2, su3, su4, su5, su6, su7, su8, su9, su10, su11, su12, su13, su14, su15, su16, su17, su18, su19, su20, su21, su22, su23 = 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
             
-            monday = [mo0, mo1, mo2, mo3, mo4, mo5, mo6, mo7, mo8, mo9, mo10, mo11, mo12, mo13, mo14, mo15, mo16, mo17, mo18, mo19, mo20, mo21, mo22, mo23]
-            tuesday = [tu0, tu1, tu2, tu3, tu4, tu5, tu6, tu7, tu8, tu9, tu10, tu11, tu12, tu13, tu14, tu15, tu16, tu17, tu18, tu19, tu20, tu21, tu22, tu23]
-            wednesday = [we0, we1, we2, we3, we4, we5, we6, we7, we8, we9, we10, we11, we12, we13, we14, we15, we16, we17, we18, we19, we20, we21, we22, we23]
-            thursday = [th0, th1, th2, th3, th4, th5, th6, th7, th8, th9, th10, th11, th12, th13, th14, th15, th16, th17, th18, th19, th20, th21, th22, th23]
-            friday = [fr0, fr1, fr2, fr3, fr4, fr5, fr6, fr7, fr8, fr9, fr10, fr11, fr12, fr13, fr14, fr15, fr16, fr17, fr18, fr19, fr20, fr21, fr22, fr23]
-            saturday = [sa0, sa1, sa2, sa3, sa4, sa5, sa6, sa7, sa8, sa9, sa10, sa11, sa12, sa13, sa14, sa15, sa16, sa17, sa18, sa19, sa20, sa21, sa22, sa23]
-            sunday = [su0, su1, su2, su3, su4, su5, su6, su7, su8, su9, su10, su11, su12, su13, su14, su15, su16, su17, su18, su19, su20, su21, su22, su23]
+            monday =    [0 for x in range(0,24)]
+            tuesday =   [0 for x in range(0,24)]
+            wednesday = [0 for x in range(0,24)]
+            thursday =  [0 for x in range(0,24)]
+            friday =    [0 for x in range(0,24)]
+            saturday =  [0 for x in range(0,24)]
+            sunday =    [0 for x in range(0,24)]
             week = [monday,tuesday,wednesday,thursday,friday,saturday,sunday]
             alreadyStreamed = [False,0]
             save()
@@ -151,118 +156,25 @@ def main():
     friday = week[4]
     saturday = week[5]
     sunday = week[6]
-    [mo0, mo1, mo2, mo3, mo4, mo5, mo6, mo7, mo8, mo9, mo10, mo11, mo12, mo13, mo14, mo15, mo16, mo17, mo18, mo19, mo20, mo21, mo22, mo23] = monday
-    [tu0, tu1, tu2, tu3, tu4, tu5, tu6, tu7, tu8, tu9, tu10, tu11, tu12, tu13, tu14, tu15, tu16, tu17, tu18, tu19, tu20, tu21, tu22, tu23] = tuesday
-    [we0, we1, we2, we3, we4, we5, we6, we7, we8, we9, we10, we11, we12, we13, we14, we15, we16, we17, we18, we19, we20, we21, we22, we23] = wednesday
-    [th0, th1, th2, th3, th4, th5, th6, th7, th8, th9, th10, th11, th12, th13, th14, th15, th16, th17, th18, th19, th20, th21, th22, th23] = thursday
-    [fr0, fr1, fr2, fr3, fr4, fr5, fr6, fr7, fr8, fr9, fr10, fr11, fr12, fr13, fr14, fr15, fr16, fr17, fr18, fr19, fr20, fr21, fr22, fr23] = friday
-    [sa0, sa1, sa2, sa3, sa4, sa5, sa6, sa7, sa8, sa9, sa10, sa11, sa12, sa13, sa14, sa15, sa16, sa17, sa18, sa19, sa20, sa21, sa22, sa23] = saturday
-    [su0, su1, su2, su3, su4, su5, su6, su7, su8, su9, su10, su11, su12, su13, su14, su15, su16, su17, su18, su19, su20, su21, su22, su23] = sunday
 
 
     #resList is all of the days combined
-    cd0, cd1, cd2, cd3, cd4, cd5, cd6, cd7, cd8, cd9, cd10, cd11, cd12, cd13, cd14, cd15, cd16, cd17, cd18, cd19, cd20, cd21, cd22, cd23 = 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-    combinedDays = [cd0, cd1, cd2, cd3, cd4, cd5, cd6, cd7, cd8, cd9, cd10, cd11, cd12, cd13, cd14, cd15, cd16, cd17, cd18, cd19, cd20, cd21, cd22, cd23]
+    
+    combinedDays = [0 for x in range(0,24)]
     resList = []
     for i in range(len(combinedDays)):
         resList.append(combinedDays[i]+monday[i]+tuesday[i]+wednesday[i]+thursday[i]+friday[i]+saturday[i]+sunday[i])
 
     
-    
-
-
     while True:
         
-
         userinput = input("=>")
         if userinput == "input":
             datainput()
             
         elif userinput == "data":
-            data()
-        
-        elif userinput =="listen":
-            """
-            checks if tracked streamer goes live and adds it into database
-            also displays prediction on streamer going live with the database and polynominal regression module
-            """
-            live = True
-            while True:
-                try:
-                    try:
-                        os.system("cls")
-                        
-                        #get time
-                        currenttime = time.struct_time(time.localtime())
-                        currentminute = currenttime[4]
-                        currenthour = currenttime[3]
-                        currentday = currenttime[6]
-
-
-                        #updates alreadyStreamed to current day
-                        if alreadyStreamed[0] == True and alreadyStreamed[1] != currentday and live == False:
-                            alreadyStreamed = [False,currentday]
-                            save()
-
-
-                        contents = requests.get('https://www.twitch.tv/' +CHANNELNAME).content.decode('utf-8')
-
-                        #search for stream title
-                        title = ""
-                        try:
-                            index = contents.find('description" content="') #len 22
-                            index += 22
-                            end_index = contents.find('"',index)
-                            for char in range(index, end_index):
-                                title += contents[char]
-                        except Exception:
-                            pass
-                        
-                        #see if streamer is online, also avoid misinput if have streamed already
-                        if 'isLiveBroadcast' in contents: 
-                            if live == False:
-                                if alreadyStreamed[0] == False:
-                                    print(f"{CHANNELNAME} is live                                            ",end="\r")
-                                    playsound.playsound("auughhh.mp3")
-                                    #log it to database (its only an integrer i know, the database is only used for predicting streams)
-                                    week[currentday][currenthour] +=1
-                                    alreadyStreamed = [True,currentday]
-                                    live = True
-                                    save()
-                                    resList = []
-                                    #update resList
-                                    for i in range(len(combinedDays)):
-                                        resList.append(combinedDays[i]+monday[i]+tuesday[i]+wednesday[i]+thursday[i]+friday[i]+saturday[i]+sunday[i])
-
-                        #setting up prediction
-
-
-                        prediction,line,model = predict(currenthour,currentminute,resList)
-
-
-
-                        if 'isLiveBroadcast' in contents:
-                            print(f"{CHANNELNAME} is live / avoiding misinput / {title}",end="\r")
-                            alreadyStreamed = [True,currentday]
-                            streamEndHour = copy.copy(currenthour)
-                            save()
-
-                        elif alreadyStreamed[0] == True and alreadyStreamed[1] == currentday and live == False:
-                            print(f"{CHANNELNAME} already streamed today / overall probability {prediction}%",end="\r")
-                            live = False
-
-                        else:
-                            print(f"{CHANNELNAME} is not live / overall probability {prediction}%",end="\r")
-                            live = False
-                        #print(60/model(line[currenthour]))
-                        time.sleep(60/model(line[currenthour]))
-                    except KeyboardInterrupt:
-                        os.system("cls")
-                        break
-                except Exception as err:
-                    logging.exception(err)
-                
-                
+            resList = data()
+            
         elif userinput == "todaysresults":
             graph(False)
            
@@ -275,30 +187,121 @@ def main():
             os.system("cls")
             
             
-        #simple console
-        elif userinput =="console":
-            while True:
-                consoleInput = input("console: ")
-                if consoleInput == "help":
-                    print("graph(isResList)\nsave()\nback")
-                    continue
-                try:
-                    exec(consoleInput)
-                except:
-                    if consoleInput == "back":
-                        break
-                    else:
-                        print("ran into a problem")
         elif userinput =="help":
-            print("input\nresults\ntodaysresults\ndata\nlisten\nconsole\ncls")
+            print("input\nresults\ntodaysresults\ndata\nlisten\nconsole\ncls\ngraph(isResList)\nsave()\nback")
+        
+        elif userinput =="listen":
+            """
+            checks if tracked streamer goes live and adds it into database
+            also displays prediction on streamer going live with the database and polynominal regression module
+            """
+            streamEndHour = 0
+            live = True
+            while True:
+                try:
+                    try:
+                        os.system("cls")
+                        
+                        #get time
+                        currenttime = time.struct_time(time.localtime())
+                        currentminute = currenttime[4]
+                        currenthour = currenttime[3]
+                        currentday = currenttime[6]
+
+                        #updates alreadyStreamed to current day
+                        if alreadyStreamed[0] == True and alreadyStreamed[1] != currentday and live == False:
+                            alreadyStreamed = [False,currentday]
+                            save()
+
+
+                        contents = requests.get('https://www.twitch.tv/' +CHANNELNAME).content.decode('utf-8')  #startdate -3 hour diff
+
+                        #search for stream title
+                        title = ""
+                        try:
+                            index = contents.find('description" content="') #len 22
+                            index += 22
+                            end_index = contents.find('"',index)
+                            for char in range(index, end_index):
+                                title += contents[char]
+                        except Exception:
+                            pass
+                        
+                        #check stream startTime for verification
+                        startdate = ""
+                        try:
+                            index = contents.find('startDate":"') #len 12
+                            index += 12
+                            index = contents.find('T',index)
+                            index += 1
+                            end_index = contents.find(':',index)
+                            for num in range(index,end_index):
+                                startdate += contents[num]
+                            startdate = int(startdate)
+                        except Exception:
+                            pass
+                        
+                        #see if streamer is online, also avoid misinput if have streamed already
+                        if 'isLiveBroadcast' in contents: 
+                            if live == False:
+                                if alreadyStreamed[0] == False:
+                                    if hour24[currenthour-TIMEDIFF] == startdate:
+                                        print(f"{CHANNELNAME} is live                                            ",end="\r")
+                                        playsound.playsound("auughhh.mp3")
+                                        #log it to database
+                                        week[currentday][currenthour] +=1
+                                        alreadyStreamed = [True,currentday]
+                                        live = True
+                                        save()
+                                        resList = []
+                                        #update resList
+                                        for i in range(len(combinedDays)):
+                                            resList.append(combinedDays[i]+monday[i]+tuesday[i]+wednesday[i]+thursday[i]+friday[i]+saturday[i]+sunday[i])
+                                        logging.info("stream started")
+                                    else:
+                                        #weird mystery bug which has been badly patched
+                                        logging.info(f"avoided misinput: {hour24[currenthour-TIMEDIFF]} != {startdate} ")
+                        #prediction
+                        prediction,line,model = predict(currenthour,currentminute,resList)
+
+                        if 'isLiveBroadcast' in contents:
+                            print(f"{CHANNELNAME} is live! \ntitle: {title}",end="\r")
+                            alreadyStreamed = [True,currentday]
+                            streamEndHour = copy.copy(currenthour)
+                            save()
+
+                        elif alreadyStreamed[0] == True and alreadyStreamed[1] == currentday and live == False:
+                            if live and "streamEndHour" in locals():
+                                print(f"{CHANNELNAME} already streamed today at {streamEndHour} \noverall probability: {prediction}%",end="\r")
+                            else:
+                                print(f"{CHANNELNAME} already streamed today \noverall probability: {prediction}%",end="\r")
+
+                        else:
+                            print(f"{CHANNELNAME} is not live \noverall probability: {prediction}%",end="\r")
+                            if live and "streamEndHour" in locals():
+                                if streamEndHour != currenthour:
+                                    live = False
+                            else:
+                                live = False
+                            
+                        #print(60/model(currenthour))
+                        time.sleep(60/model(currenthour))
+                    except KeyboardInterrupt:
+                        os.system("cls")
+                        break
+                except Exception as err:
+                    logging.exception(err)
+                
+        #simple console
+        else:
+            try:
+                exec(userinput)
+            except Exception as err:
+                if userinput == "back":
+                    break
+                else:
+                    print(f"ran into a problem, try help. error: {err}")
+                
             
 
-
-
-
-
-
 if __name__=="__main__": main()
-
-
-
