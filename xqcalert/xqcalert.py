@@ -128,6 +128,24 @@ def datainput():
 def main():
     global week, userinput, alreadyStreamed, combinedDays, resList
 
+    antenna = r"""
+      ,-.
+     / \  `.  __..-,O
+    :   \ --''_..-'.'
+    |    . .-' `. '.
+    :     .     .`.'
+     \     `.  /  ..
+      \      `.   ' .
+       `,       `.   \
+      ,|,`.        `-.\
+     '.||  ``-...__..-`
+      |  |
+      |__|
+      /||\
+     //||\\
+    // || \\
+ __//__||__\\__
+'--------------'"""
    
 
     try:
@@ -202,6 +220,8 @@ def main():
                     try:
                         os.system("cls")
                         
+                        print(antenna)
+                        
                         #get time
                         currenttime = time.struct_time(time.localtime())
                         currentminute = currenttime[4]
@@ -245,8 +265,7 @@ def main():
                         if 'isLiveBroadcast' in contents: 
                             if live == False:
                                 if alreadyStreamed[0] == False:
-                                    if hour24[currenthour-TIMEDIFF] == startdate:
-                                        print(f"{CHANNELNAME} is live                                            ",end="\r")
+                                    if hour24[currenthour-TIMEDIFF] == startdate or hour24[currenthour-TIMEDIFF+1] == startdate:
                                         playsound.playsound("auughhh.mp3")
                                         #log it to database
                                         week[currentday][currenthour] +=1
