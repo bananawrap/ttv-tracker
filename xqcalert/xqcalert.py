@@ -7,6 +7,7 @@ import numpy as np
 import copy
 import os
 import logging
+import json
 
 from sklearn.metrics import r2_score
 
@@ -16,11 +17,6 @@ this code is for predicting the probability of xqc going live at a certain time 
 it uses a polynomial regression model to predict the probability of the stream starting
 the model is trained on data from xqc stream history
 """
-
-TIMEDIFF = 3
-hour24 = [x for x in range(0,24)]
-WEEKSTR = ["monday","tuesday","wednesday","thursday","friday","saturday","sunday"]
-CHANNELNAME = 'xqc'
 
 #setting up logs and disabling unnecessary loggers
 logging.basicConfig(filename='log.txt', level=logging.INFO, format='%(asctime)s %(levelname)s %(name)s %(message)s')
@@ -33,18 +29,54 @@ logging.getLogger("urllib3.connectionpool").disabled = True
 logging.getLogger("urllib3.poolmanager").disabled = True
 logging.getLogger("requests").disabled = True
 
+TIMEDIFF = 3
+hour24 = [x for x in range(0,24)]
+WEEKSTR = ["monday","tuesday","wednesday","thursday","friday","saturday","sunday"]
 
-def save():
-    with open('data.pckl', 'wb') as file:
+
+def savesettings(settings):
+    with open(f'settings.json', "w") as file:
+        json.dump(settings,file)
+    return settings["channelname"]
+        
+        
+def save(data):
+    with open(f'{channelname}_data.pckl', 'wb') as file:
         pickle.dump([week, alreadyStreamed], file)
+    with open(f'{channelname}_data.json', 'wb') as file:
+        pickle.dump(data, file)
         
+
+try:
+    with open(f'settings.json', "r") as file:
+        settings = json.load(file)
+    
+except Exception as err:
+    logging.error(err),
+    target = {"channelname":input("set target: ")}
+    savesettings(target)
+channelname = settings["channelname"]
+
+
+def setTarget(): 
+    print(f"current target: {channelname}")
+    try:
+        userinput = {"channelname":input("set target: ")}
+        if userinput["channelname"] != "":
+            channelname = savesettings(userinput)
+            
+        else:
+            raise ValueError("empty name")
         
+    except Exception as err:
+        print(f"failure: {err}")
+    return channelname
+
 def predict(currenthour, currentminute, ypoints):
     
-    xpoints = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23]
     
     #polynominal regression module
-    model = np.poly1d(np.polyfit(xpoints,ypoints,deg=5))
+    model = np.poly1d(np.polyfit(hour24,ypoints,deg=5))
     line = np.linspace(0,23,100)
     
     #we use the module to get a prediction for the current time
@@ -84,7 +116,7 @@ def graph(isResList):
     plt.show()
     
 
-def data():
+def displaydata():
     #calc resList again since it may have changed
             resList = []
             for i in range(len(combinedDays)):
@@ -97,7 +129,7 @@ def data():
             return resList
             
           
-def datainput():
+def datainput(data):
     #manually add logs to database
     run = True
     x = False
@@ -120,42 +152,61 @@ def datainput():
             try:
                 hour = int(input("hour: "))
                 day[hour] +=1
-                save()   
+                data["week"] = week
+                save(data)   
             except Exception:
                 break
             
+def makesave():
+    global week, alreadyStreamed, channelname 
+    monday =    [0 for x in range(0,24)]
+    tuesday =   [0 for x in range(0,24)]
+    wednesday = [0 for x in range(0,24)]
+    thursday =  [0 for x in range(0,24)]
+    friday =    [0 for x in range(0,24)]
+    saturday =  [0 for x in range(0,24)]
+    sunday =    [0 for x in range(0,24)]
+    week = [monday,tuesday,wednesday,thursday,friday,saturday,sunday]
+    alreadyStreamed = [False,0]
+    data = {
+            "week":week,
+            "alreadyStreamed":alreadyStreamed
+            }
+    return data
+    
+            
 
 def main():
-    global week, userinput, alreadyStreamed, combinedDays, resList
+    global week, userinput, alreadyStreamed, combinedDays, resList, channelname
 
-   
 
     try:
-        with open('data.pckl', 'rb') as file:
-            [week,alreadyStreamed] = pickle.load(file)
-    except Exception:
-        if input("make new save? (y/n)")=="y":
-            
-            monday =    [0 for x in range(0,24)]
-            tuesday =   [0 for x in range(0,24)]
-            wednesday = [0 for x in range(0,24)]
-            thursday =  [0 for x in range(0,24)]
-            friday =    [0 for x in range(0,24)]
-            saturday =  [0 for x in range(0,24)]
-            sunday =    [0 for x in range(0,24)]
-            week = [monday,tuesday,wednesday,thursday,friday,saturday,sunday]
-            alreadyStreamed = [False,0]
-            save()
-    
+        with open(f'{channelname}_data.json', 'rb') as file:
+            data = json.load(file)
+    except Exception as err:
         
+        logging.error(err)
+        print("failed to load. Check log.txt")
+        if input(f"try to make a new save for {channelname}? y/n : ") == "y":
+            save(makesave())
+            print("xqcalert.py is about to exit")
+            time.sleep(5)
+            exit()
+    
+    else: 
+        
+        week = data["week"]
+        alreadyStreamed = data["alreadyStreamed"]
 
-    monday = week[0]
-    tuesday = week[1]
-    wednesday = week[2]
-    thursday = week[3]
-    friday = week[4]
-    saturday = week[5]
-    sunday = week[6]
+        
+        
+        monday = week[0]
+        tuesday = week[1]
+        wednesday = week[2]
+        thursday = week[3]
+        friday = week[4]
+        saturday = week[5]
+        sunday = week[6]
 
 
     #resList is all of the days combined
@@ -170,10 +221,10 @@ def main():
         
         userinput = input("=>")
         if userinput == "input":
-            datainput()
+            datainput(data)
             
         elif userinput == "data":
-            resList = data()
+            resList = displaydata()
             
         elif userinput == "todaysresults":
             graph(False)
@@ -187,8 +238,11 @@ def main():
             os.system("cls")
             
             
-        elif userinput =="help":
-            print("input\nresults\ntodaysresults\ndata\nlisten\nconsole\ncls\ngraph(isResList)\nsave()\nback")
+        elif userinput == "help":
+            print("input\nresults\ntodaysresults\ndata\nlisten\nconsole\ncls\ngraph(isResList)\nsave()\nback\nsetTarget")
+            
+        elif userinput == "setTarget":
+            channelname = setTarget()
         
         elif userinput =="listen":
             """
@@ -214,7 +268,7 @@ def main():
                             save()
 
 
-                        contents = requests.get('https://www.twitch.tv/' +CHANNELNAME).content.decode('utf-8')  #startdate -3 hour diff
+                        contents = requests.get('https://www.twitch.tv/' +channelname).content.decode('utf-8')  #startdate -3 hour diff
 
                         #search for stream title
                         title = ""
@@ -246,13 +300,15 @@ def main():
                             if live == False:
                                 if alreadyStreamed[0] == False:
                                     if hour24[currenthour-TIMEDIFF] == startdate:
-                                        print(f"{CHANNELNAME} is live                                            ",end="\r")
+                                        print(f"{channelname} is live                                            ",end="\r")
                                         playsound.playsound("auughhh.mp3")
                                         #log it to database
                                         week[currentday][currenthour] +=1
                                         alreadyStreamed = [True,currentday]
                                         live = True
-                                        save()
+                                        data["week"] = week
+                                        data["alreadyStreamed"] = alreadyStreamed
+                                        save(data)
                                         resList = []
                                         #update resList
                                         for i in range(len(combinedDays)):
@@ -261,23 +317,24 @@ def main():
                                     else:
                                         #weird mystery bug which has been badly patched
                                         logging.info(f"avoided misinput: {hour24[currenthour-TIMEDIFF]} != {startdate} ")
+                                        
                         #prediction
                         prediction,line,model = predict(currenthour,currentminute,resList)
 
                         if 'isLiveBroadcast' in contents:
-                            print(f"{CHANNELNAME} is live! \ntitle: {title}",end="\r")
+                            print(f"{channelname} is live! \ntitle: {title}",end="\r")
                             alreadyStreamed = [True,currentday]
                             streamEndHour = copy.copy(currenthour)
                             save()
 
                         elif alreadyStreamed[0] == True and alreadyStreamed[1] == currentday and live == False:
                             if live and "streamEndHour" in locals():
-                                print(f"{CHANNELNAME} already streamed today at {streamEndHour} \noverall probability: {prediction}%",end="\r")
+                                print(f"{channelname} already streamed today at {streamEndHour} \noverall probability: {prediction}%",end="\r")
                             else:
-                                print(f"{CHANNELNAME} already streamed today \noverall probability: {prediction}%",end="\r")
+                                print(f"{channelname} already streamed today \noverall probability: {prediction}%",end="\r")
 
                         else:
-                            print(f"{CHANNELNAME} is not live \noverall probability: {prediction}%",end="\r")
+                            print(f"{channelname} is not live \noverall probability: {prediction}%",end="\r")
                             if live and "streamEndHour" in locals():
                                 if streamEndHour != currenthour:
                                     live = False
