@@ -33,6 +33,55 @@ TIMEDIFF = 3
 hour24 = [x for x in range(0,24)]
 WEEKSTR = ["monday","tuesday","wednesday","thursday","friday","saturday","sunday"]
 
+def load(channelname):
+    global week, userinput, alreadyStreamed, combinedDays, resList, data
+    try:
+        with open(f'{channelname}_data.json', 'r') as file:
+            data = json.load(file)
+    except Exception as err:
+        try:
+            with open(f'data.pckl', 'rb') as file:
+                [week,alreadyStreamed] = pickle.load(file)
+            data = {
+                "week":week,
+                "alreadyStreamed":alreadyStreamed
+                }
+            save(data)
+            with open(f'{channelname}_data.json', 'r') as file:
+                data = json.load(file)
+        except Exception as err2:
+            logging.error(err)
+            logging.error(err2)
+            print("failed to load. Check log.txt")
+            if input(f"try to make a new save for {channelname}? y/n : ") == "y":
+                save(makesave())
+                print("xqcalert.py is about to exit, if it doesn't please close it yourself")
+                time.sleep(5)
+                exit()
+    
+    else: 
+        
+        week = data["week"]
+        alreadyStreamed = data["alreadyStreamed"]
+
+        
+        
+        monday = week[0]
+        tuesday = week[1]
+        wednesday = week[2]
+        thursday = week[3]
+        friday = week[4]
+        saturday = week[5]
+        sunday = week[6]
+
+
+        #resList is all of the days combined
+
+        combinedDays = [0 for x in range(0,24)]
+        resList = []
+        for i in range(len(combinedDays)):
+            resList.append(combinedDays[i]+monday[i]+tuesday[i]+wednesday[i]+thursday[i]+friday[i]+saturday[i]+sunday[i])
+        return channelname
 
 def savesettings(settings):
     with open(f'settings.json', "w") as file:
@@ -41,11 +90,11 @@ def savesettings(settings):
         
         
 def save(data):
-    with open(f'{channelname}_data.pckl', 'wb') as file:
-        pickle.dump([week, alreadyStreamed], file)
-    with open(f'{channelname}_data.json', 'wb') as file:
-        pickle.dump(data, file)
+    with open(f'{channelname}_data.json', 'w') as file:
+        json.dump(data, file)
         
+        
+
 
 try:
     with open(f'settings.json', "r") as file:
@@ -57,20 +106,24 @@ except Exception as err:
     savesettings(target)
 channelname = settings["channelname"]
 
-
-def setTarget(): 
+def setTarget(channelname): 
     print(f"current target: {channelname}")
     try:
         userinput = {"channelname":input("set target: ")}
         if userinput["channelname"] != "":
             channelname = savesettings(userinput)
-            
+            try:
+                channelname = load(channelname)
+            except:
+                data = makesave()
+                return data
         else:
             raise ValueError("empty name")
         
     except Exception as err:
         print(f"failure: {err}")
-    return channelname
+    
+
 
 def predict(currenthour, currentminute, ypoints):
     
@@ -121,6 +174,7 @@ def displaydata():
             resList = []
             for i in range(len(combinedDays)):
                 resList.append(combinedDays[i]+week[0][i]+week[1][i]+week[2][i]+week[3][i]+week[4][i]+week[5][i]+week[6][i])
+            print(f"showing data for {channelname}")
             print("/////WEEKDAYS/////")
             for j, day in enumerate(week):
                 print(f"{WEEKSTR[j]}:  {' '*(len(WEEKSTR[2])-len(WEEKSTR[j]))}{day}")
@@ -177,47 +231,35 @@ def makesave():
             
 
 def main():
-    global week, userinput, alreadyStreamed, combinedDays, resList, channelname
+    global week, userinput, alreadyStreamed, combinedDays, resList, channelname, data
 
+    antenna = r"""
+      ,-.
+     / \  `.  __..-,O
+    :   \ --''_..-'.'
+    |    . .-' `. '.
+    :     .     .`.'
+     \     `.  /  ..
+      \      `.   ' .
+       `,       `.   \
+      ,|,`.        `-.\
+     '.||  ``-...__..-`
+      |  |
+      |__|
+      /||\
+     //||\\
+    // || \\
+ __//__||__\\__
+'--------------'"""
 
-    try:
-        with open(f'{channelname}_data.json', 'rb') as file:
-            data = json.load(file)
-    except Exception as err:
-        
-        logging.error(err)
-        print("failed to load. Check log.txt")
-        if input(f"try to make a new save for {channelname}? y/n : ") == "y":
-            save(makesave())
-            print("xqcalert.py is about to exit")
-            time.sleep(5)
-            exit()
-    
-    else: 
-        
-        week = data["week"]
-        alreadyStreamed = data["alreadyStreamed"]
-
-        
-        
-        monday = week[0]
-        tuesday = week[1]
-        wednesday = week[2]
-        thursday = week[3]
-        friday = week[4]
-        saturday = week[5]
-        sunday = week[6]
-
-
-    #resList is all of the days combined
-    
-    combinedDays = [0 for x in range(0,24)]
-    resList = []
-    for i in range(len(combinedDays)):
-        resList.append(combinedDays[i]+monday[i]+tuesday[i]+wednesday[i]+thursday[i]+friday[i]+saturday[i]+sunday[i])
+    channelname = load(channelname)
 
     
     while True:
+        with open(f'settings.json', "r") as file:
+            settings = json.load(file)
+        
+        channelname = settings["channelname"]
         
         userinput = input("=>")
         if userinput == "input":
@@ -242,7 +284,23 @@ def main():
             print("input\nresults\ntodaysresults\ndata\nlisten\nconsole\ncls\ngraph(isResList)\nsave()\nback\nsetTarget")
             
         elif userinput == "setTarget":
-            channelname = setTarget()
+            data = setTarget(channelname)
+            
+            if data != None:
+                save(data)
+                week = data["week"]
+                alreadyStreamed = data["alreadyStreamed"]
+
+
+
+                monday = week[0]
+                tuesday = week[1]
+                wednesday = week[2]
+                thursday = week[3]
+                friday = week[4]
+                saturday = week[5]
+                sunday = week[6]
+            
         
         elif userinput =="listen":
             """
@@ -255,6 +313,8 @@ def main():
                 try:
                     try:
                         os.system("cls")
+                        
+                        print(antenna)
                         
                         #get time
                         currenttime = time.struct_time(time.localtime())
@@ -342,7 +402,10 @@ def main():
                                 live = False
                             
                         #print(60/model(currenthour))
-                        time.sleep(60/model(currenthour))
+                        if 60/model(currenthour) < 100000000000:
+                            time.sleep(60/model(currenthour))
+                        else:
+                            time.sleep(60)
                     except KeyboardInterrupt:
                         os.system("cls")
                         break
