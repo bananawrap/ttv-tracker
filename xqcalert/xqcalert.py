@@ -151,11 +151,23 @@ def displaydata(data, channelname): # basically a fancy and a complicated way of
     week = data["week"]
     
     print(f"showing data for {channelname}")
-    print(f"{' '*round((len(WEEKSTR[2])+(24*3))/2)}/////DAYS/////")
-    for j, day in enumerate(week):
-        print(f"{WEEKSTR[j]}:  {' '*(len(WEEKSTR[2])-len(WEEKSTR[j]))}{day}")
-    print(f"{' '*round((len(WEEKSTR[2])+(24*3))/2)}/////TOTAL/////")
-    print(f"{' '*(len(WEEKSTR[2])+3)}{resList}")
+    string = f"hour:  {' '*(len(WEEKSTR[2])-len('hour'))}"
+    for j, hour in enumerate(hour24):
+        string += f"{hour}  "
+    print(f"{' '*round((len(string))/2)}/////DAYS/////")
+    #print(f"hour:  {' '*(len(WEEKSTR[2])-len('hour'))}{hour24}")
+    print(string)
+    for i, day in enumerate(week):
+        string = f"{WEEKSTR[i]}:  {' '*(len(WEEKSTR[2])-len(WEEKSTR[i]))}"
+        for j, hour in enumerate(day):
+            string += f"{hour}|{' '*len(str(hour24[j]))}"
+        print(string)
+    #print(f"{' '*round((len(WEEKSTR[2])+(24*3))/2)}/////TOTAL/////")
+    print("")
+    string = f"total:  {' '*(len(WEEKSTR[2])-len('total'))}"
+    for j, hour in enumerate(resList):
+        string += f"{hour}|{' '*len(str(hour24[j]))}"
+    print(string)
             
           
 def datainput(data, channelname): #manually add logs to database
@@ -214,6 +226,7 @@ def clear():
 def check_port(ip,port): 
     try:
         c = socket.socket(socket.AF_INET, socket.SOCK_STREAM) 
+        c.settimeout(5)
         c.connect((ip, port))
         c.close()
         return True
@@ -363,11 +376,12 @@ def listen(data, channelname):
         if check_port(ips["pi"],5785):
             sync(data, channelname)
             load(channelname)
+            time.sleep(5)
     except Exception as err:
         print(err)
         logging.error(err)
+        time.sleep(5)
     
-    time.sleep(5)
     streamEndHour = 0
     live = True
     while True:
