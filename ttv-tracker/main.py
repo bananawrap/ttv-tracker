@@ -14,6 +14,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.metrics import r2_score
 from win10toast import ToastNotifier
+from bs4 import BeautifulSoup
 
 """
 this code is for predicting the probability of a streamer going live at a certain time of day
@@ -33,6 +34,8 @@ hour24 = [x for x in range(0,24)]
 WEEKSTR = ["monday","tuesday","wednesday","thursday","friday","saturday","sunday"]
 
 main_dir = os.path.split(os.path.abspath(__file__))[0]
+
+
 
 
 def load(channelname): #load savefile function
@@ -305,7 +308,7 @@ def sync(data, channelname, silent=False):
     else:
         s.send("".encode())
         s.close()
-        if not silent: print("already synced")
+        if not silent: print(f"{channelname} data is already synced")
         return
     
 def get_time():
@@ -332,6 +335,8 @@ def get_startdate(contents):
     starthour = ""
     try:
         index = contents.find('startDate":"') #len 12
+        if index == -1:
+            return index
         index += 12
         index = contents.find('T',index)
         index += 1
@@ -355,7 +360,10 @@ def update_reslist(data):
 def get_stream(channelname):
     return requests.get('https://www.twitch.tv/' +channelname).content.decode('utf-8')  #startdate -3 hour diff
 
-def listen(data, channelname):
+def get_accuracy(data):
+    return r2_score(update_reslist(data), predict(get_time()[1], get_time()[2], update_reslist(data))[2](hour24))
+
+def track(data, channelname):
     """
     checks if tracked streamer goes live and adds it into database
     also displays prediction on streamer going live with the database and polynominal regression module
@@ -420,7 +428,7 @@ def listen(data, channelname):
             starthour = get_startdate(contents)
 
             #see if streamer is online, also avoid misinput if streamed already
-            if 'isLiveBroadcast' in contents: 
+            if 'isLiveBroadcast' in contents and starthour != -1: 
                 if live == False:
                     if alreadyStreamed[0] == False:
                         #verifies if the stream has started in the past hour to avoid false positives
@@ -499,21 +507,12 @@ def listen(data, channelname):
             logging.exception(err)
             
 
-def listen_lite(data, channelname):
+def track_lite(data, channelname):
     """
     checks if tracked streamer goes live and adds it into database
     also displays prediction on streamer going live with the database and polynominal regression module
     """
     
-    
-    try:
-        if check_port(ips["pi"],5785):
-            sync(data, channelname, silent=True)
-            data = load(channelname)
-            time.sleep(5)
-    except Exception as err:
-        logging.error(err)
-        time.sleep(5)
     
     week = data["week"]
     alreadyStreamed = data["alreadyStreamed"]
@@ -525,6 +524,7 @@ def listen_lite(data, channelname):
         #updates alreadyStreamed to current day
         if alreadyStreamed[0] == True and alreadyStreamed[1] != currentday:
             alreadyStreamed = [False,alreadyStreamed[1]]
+            data["alreadyStreamed"] = alreadyStreamed
             save(data, channelname)
             
         #request stream data from twitch
@@ -538,36 +538,37 @@ def listen_lite(data, channelname):
         starthour = get_startdate(contents)
 
         #see if streamer is online, also avoid misinput if streamed already
-        if 'isLiveBroadcast' in contents: 
-            if alreadyStreamed[0] == False:
-                #verifies if the stream has started in the past hour to avoid false positives
-                if hour24[currenthour-TIMEDIFF] == starthour or hour24[currenthour+1-TIMEDIFF] == starthour:
-                    #log it to the data list
-                    week[currentday][currenthour] +=1
-                    #set the already streamed flag to true
-                    alreadyStreamed = [True,currentday]
-                    #confirm that the stream is live
-                    live = True
-                    #pack the information into a data dictionary and save it to (channelname)_data.json
-                    data["week"] = week
-                    data["alreadyStreamed"] = alreadyStreamed
-                    save(data, channelname)
-                        
-                    resList = update_reslist(data)
-                        
-                        
-                    logging.info(f"{channelname} stream started") # log into log.txt
-                    #show a windows toast
-                    toast.show_toast(
-                    f"{channelname} went live!",
-                    f"{title}",
-                    duration = 20,
-                    icon_path = "pythowo.ico",
-                    threaded = True,
-                    )
-                else:
-                    #weird mystery bug which has been badly patched
-                    logging.info(f"avoided misinput: {hour24[currenthour-TIMEDIFF]} != {starthour} ")
+        if starthour != None:
+            if 'isLiveBroadcast' in contents and starthour != -1: 
+                if alreadyStreamed[0] == False:
+                    #verifies if the stream has started in the past hour to avoid false positives
+                    if hour24[currenthour-TIMEDIFF] == starthour or hour24[currenthour+1-TIMEDIFF] == starthour:
+                        #log it to the data list
+                        week[currentday][currenthour] +=1
+                        #set the already streamed flag to true
+                        alreadyStreamed = [True,currentday]
+                        #confirm that the stream is live
+                        live = True
+                        #pack the information into a data dictionary and save it to (channelname)_data.json
+                        data["week"] = week
+                        data["alreadyStreamed"] = alreadyStreamed
+                        save(data, channelname)
+                            
+                        resList = update_reslist(data)
+                            
+                            
+                        logging.info(f"{channelname} stream started") # log into log.txt
+                        #show a windows toast
+                        toast.show_toast(
+                        f"{channelname} went live!",
+                        f"{title}",
+                        duration = 20,
+                        icon_path = "pythowo.ico",
+                        threaded = True,
+                        )
+                    else:
+                        #weird mystery bug which has been badly patched
+                        logging.info(f"avoided misinput: {hour24[currenthour-TIMEDIFF]} != {starthour} ")
                         
         #prediction
         prediction,line,model = predict(currenthour,currentminute,resList)
@@ -586,12 +587,13 @@ def listen_lite(data, channelname):
         logging.exception(err)    
         
 
-def multilisten():
+def multitrack():
+    accuracyratings = ["bad", "decent", "good", "very good"]
     listeners = {}
     message = ""
     while True:
         clear()
-        print("multilisten paused")
+        print("multitrack paused")
         print(f"listeners: {len(listeners)}")
         print(f"{message}")
         message = ""
@@ -622,21 +624,41 @@ def multilisten():
                 message += f"{listener}\n"
         
         elif "play" in userinput:
+            message = ""
+            for streamer in listeners:
+                try:
+                    if check_port(ips["pi"],5785):
+                        sync(listeners[streamer], streamer)
+                        time.sleep(5)
+                except ConnectionError:
+                    print("no internet")
+                except Exception as err:
+                    logging.error(err)
+                    time.sleep(5)
+            
             while True:
                 try:
                     clear()
-                    print("multilisten playing (ctrl + c) to pause")
+                    print("multitrack playing (ctrl + c) to pause")
                     print(f"active listeners: {len(listeners)}")
-                    print("")
+                    print(f"{message}")
+                    
+                    for streamer in listeners:
+                        listeners[streamer] = load(streamer)
 
                     for streamer in listeners:
-                        streaminfo = listen_lite(listeners[streamer],streamer)
+                        streaminfo = track_lite(listeners[streamer],streamer)
                         streaminfo = { 
                                       "data":streaminfo[0], 
                                       "prediction":streaminfo[1], 
                                       "live":streaminfo[2], 
                                      }
+                        try:
+                            accuracyrating = accuracyratings[round(get_accuracy(streaminfo["data"])*100/25)]
+                        except Exception:
+                            accuracyrating = "none"
                         
+                        save(streaminfo["data"], streamer)
                         print(f"{'-'*os.get_terminal_size()[0]}")
                         print(f"streamer: {streamer}")
                         print(f"live: {streaminfo['live']}")
@@ -644,6 +666,7 @@ def multilisten():
                             print(f"title: {get_title(get_stream(streamer))}")
                         else:
                             print(f"probability of a stream: {streaminfo['prediction']}%")
+                            print(f"prediction accuracy is {accuracyrating}")
                             print(f"last stream on {WEEKSTR[streaminfo['data']['alreadyStreamed'][1]]}")
                     time.sleep(60)
                         
@@ -651,6 +674,10 @@ def multilisten():
         
                 except KeyboardInterrupt:
                     break
+                except Exception as err:
+                    logging.error(err)
+                    message = "an error occured during tracking. Check log.txt"
+                    
         elif "help" in userinput:
             message += "usage: first do 'add streamername' and then 'play'\n"
             message += "commands:\n"
@@ -728,12 +755,12 @@ def main():
                 save(data, channelname)
 
 
-            elif userinput == "multilisten":
-                multilisten()
+            elif userinput == "multitrack":
+                multitrack()
             
             
-            elif userinput == "listen":
-                listen(data, channelname)
+            elif userinput == "track":
+                track(data, channelname)
                 
             elif userinput == "savefiles":
                 for savefile in find_savefiles():
