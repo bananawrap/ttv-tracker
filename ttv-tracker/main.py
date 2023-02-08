@@ -534,8 +534,7 @@ class TtvTracker():
                             live = False
                     else:
                         live = False
-                    
-                #print(60/model(currenthour))
+                
                 try:
                     if 60/model(currenthour) < 10000000 and prediction != None:
                         time.sleep(60/model(currenthour))
