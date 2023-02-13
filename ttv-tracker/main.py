@@ -15,7 +15,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.metrics import r2_score
 from win10toast import ToastNotifier
-from bs4 import BeautifulSoup
+#from bs4 import BeautifulSoup
 
 class TtvTracker():
     def __init__(self) -> None:
@@ -125,10 +125,10 @@ class TtvTracker():
             
     def loadsettings(self):
         try:
+            self.userscripts = []
             fullname = os.path.join(self.main_dir, 'settings.json')
             with open(fullname, "r") as file:
                 self.settings = json.load(file)
-            self.userscripts = []
             try: 
                 for setting in self.settings:
                     if isinstance(self.settings[setting], list):
