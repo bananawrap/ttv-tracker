@@ -548,7 +548,10 @@ class TtvTracker():
                     break
                 
             except Exception as err:
-                logging.exception(err)
+                if not self.check_internet():
+                    print("no internet")
+                else:
+                    logging.exception(err)
                 
 
     def track_lite(self, data, channelname):
@@ -725,8 +728,11 @@ class TtvTracker():
                     except KeyboardInterrupt:
                         break
                     except Exception as err:
-                        logging.error(err)
-                        message = "an error occured during tracking. Check log.txt"
+                        if not self.check_internet():
+                            print("no internet")
+                        else:
+                            logging.error(err)
+                            message = "an error occured during tracking. Check log.txt"
                         
             elif "help" in userinput:
                 message += "usage: first do 'add streamername' and then 'play'\n"
@@ -873,12 +879,12 @@ class TtvTracker():
 
 
                 elif userinput == "multitrack":
-                    if self.check_internet: self.multitrack()
+                    if self.check_internet(): self.multitrack()
                     else: print("no internet")
                 
                 
                 elif userinput == "track":
-                    if self.check_internet: self.track(data, channelname)
+                    if self.check_internet(): self.track(data, channelname)
                     else: print("no internet")
                     
                 elif userinput == "savefiles":
