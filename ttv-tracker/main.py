@@ -77,7 +77,7 @@ class TtvTracker():
     def makesettings(self):
         self.settings = {
             "channelname": f"{input('channelname: ')}",
-            "authorization": "1234"
+            "authorization": "ChangeMe"
         }
         self.savesettings()
 
@@ -778,19 +778,25 @@ class TtvTracker():
                 message = f"{userinput.split(' ')[1]} removed"
             
             elif "userscript" in userinput.split(" ")[0]:
-                value = userinput.replace(userinput.split(" ")[0],"").strip()
-                value = value.replace(value.split(" ")[0],"").strip()
-                self.settings[userinput.split(" ")[1]] = value
-                self.userscripts = value
-                self.savesettings()
-                message = f"{userinput.split(' ')[1]} set with the value of {value}"
+                group = userinput.split(" ")[1]
+                name = userinput.split(" ")[2]
+                value = userinput.split(" ")[3:]
+                if len(value) != 0:
+                    self.settings[name] = value
+                    self.userscripts = value
+                    self.savesettings()
+                    message = f"{name} set with the value of {value}"
+                else:
+                    message = f"invalid input\n"
+                    message += f"userscripts get run in initilation\n"
+                    message += f"syntax: userscript group name value"
             
             elif "back" in userinput:
                 break
                 
             elif "help" in userinput:
                 message += "usage: command + settingname + value\n"
-                message += "usercript lets you run a piece of code every iteration\n"
+                message += "usercript lets you run a piece of code before the mainloop\n"
                 message += "commands:\n"
                 for command in [
                 "set",
@@ -799,6 +805,14 @@ class TtvTracker():
                 "userscript"
                 ]: message += f"{command}\n"
             
+    
+    def run_userscript(self, x):
+        for script in self.userscripts:
+            try:
+                exec(script)
+            except Exception as err:
+                print(f"error in userscript: {err}")
+    
 
     def main(self):
 
@@ -816,11 +830,7 @@ class TtvTracker():
         self.loadsettings()
         channelname = self.settings["channelname"]
         
-        for script in self.userscripts:
-            try:
-                exec(script)
-            except Exception as err:
-                print(f"error in userscript: {err}")
+        
             
         while True:
             try:
@@ -872,7 +882,7 @@ class TtvTracker():
                     else: print("no internet")
                     
                 elif userinput == "savefiles":
-                    for self.savefile in self.find_self.savefiles():
+                    for self.savefile in self.find_savefiles():
                         print(self.savefile)
                 
                 elif userinput == "settings":
