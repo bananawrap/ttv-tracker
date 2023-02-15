@@ -10,6 +10,7 @@ import socket
 import re
 import inspect
 
+from telegramBot import TelegramBot
 from threading import Thread
 import numpy as np
 import matplotlib.pyplot as plt
@@ -77,7 +78,11 @@ class TtvTracker():
     def makesettings(self):
         self.settings = {
             "channelname": f"{input('channelname: ')}",
-            "authorization": "ChangeMe"
+            "authorization": "ChangeMe",
+            "telegram_bot_enabled": False,
+            "telegram_bot_API": "",
+            "chatID": [],
+            
         }
         self.savesettings()
 
@@ -137,6 +142,12 @@ class TtvTracker():
                         self.settings[setting] = self.settings[setting][0]
             except Exception:
                 pass
+            
+            try:
+                if self.settings["telegram_bot_enabled"]:
+                    self.bot = TelegramBot(self.settings["telegram_bot_API"])
+            except Exception as err:
+                logging.error(err)
 
         except Exception as err:
             logging.error(err),
@@ -499,6 +510,10 @@ class TtvTracker():
                                 
                                 logging.info("stream started")
                                 
+                                #send a telegram message if its enabled
+                                if self.settings["telegram_bot_enabled"]:
+                                    self.bot.send(self.settings["chatID"], f"{channelname} went live!\n\n{title}")
+                                
                                 #show a windows toast
                                 self.toast.show_toast(
                                 f"{channelname} went live!",
@@ -602,6 +617,11 @@ class TtvTracker():
                             self.save(data, channelname)
                                 
                             resList = self.update_reslist(data)
+                            
+                             
+                            #send a telegram message if its enabled
+                            if self.settings["telegram_bot_enabled"]:
+                                self.bot.send(self.settings["chatID"], f"{channelname} went live!\n\n{title}")
                                 
                                 
                             logging.info(f"{channelname} stream started") # log into log.txt
