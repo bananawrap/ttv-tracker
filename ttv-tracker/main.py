@@ -15,7 +15,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.metrics import r2_score
 from win10toast import ToastNotifier
-from bs4 import BeautifulSoup
+#from bs4 import BeautifulSoup
 
 class TtvTracker():
     def __init__(self) -> None:
@@ -77,7 +77,7 @@ class TtvTracker():
     def makesettings(self):
         self.settings = {
             "channelname": f"{input('channelname: ')}",
-            "authorization": "1234"
+            "authorization": "ChangeMe"
         }
         self.savesettings()
 
@@ -125,10 +125,10 @@ class TtvTracker():
             
     def loadsettings(self):
         try:
+            self.userscripts = []
             fullname = os.path.join(self.main_dir, 'settings.json')
             with open(fullname, "r") as file:
                 self.settings = json.load(file)
-            self.userscripts = []
             try: 
                 for setting in self.settings:
                     if isinstance(self.settings[setting], list):
@@ -548,7 +548,10 @@ class TtvTracker():
                     break
                 
             except Exception as err:
-                logging.exception(err)
+                if not self.check_internet():
+                    print("no internet")
+                else:
+                    logging.exception(err)
                 
 
     def track_lite(self, data, channelname):
@@ -725,8 +728,11 @@ class TtvTracker():
                     except KeyboardInterrupt:
                         break
                     except Exception as err:
-                        logging.error(err)
-                        message = "an error occured during tracking. Check log.txt"
+                        if not self.check_internet():
+                            print("no internet")
+                        else:
+                            logging.error(err)
+                            message = "an error occured during tracking. Check log.txt"
                         
             elif "help" in userinput:
                 message += "usage: first do 'add streamername' and then 'play'\n"
@@ -778,19 +784,25 @@ class TtvTracker():
                 message = f"{userinput.split(' ')[1]} removed"
             
             elif "userscript" in userinput.split(" ")[0]:
-                value = userinput.replace(userinput.split(" ")[0],"").strip()
-                value = value.replace(value.split(" ")[0],"").strip()
-                self.settings[userinput.split(" ")[1]] = value
-                self.userscripts = value
-                self.savesettings()
-                message = f"{userinput.split(' ')[1]} set with the value of {value}"
+                group = userinput.split(" ")[1]
+                name = userinput.split(" ")[2]
+                value = userinput.split(" ")[3:]
+                if len(value) != 0:
+                    self.settings[name] = value
+                    self.userscripts = value
+                    self.savesettings()
+                    message = f"{name} set with the value of {value}"
+                else:
+                    message = f"invalid input\n"
+                    message += f"userscripts get run in initilation\n"
+                    message += f"syntax: userscript group name value"
             
             elif "back" in userinput:
                 break
                 
             elif "help" in userinput:
                 message += "usage: command + settingname + value\n"
-                message += "usercript lets you run a piece of code every iteration\n"
+                message += "usercript lets you run a piece of code before the mainloop\n"
                 message += "commands:\n"
                 for command in [
                 "set",
@@ -799,6 +811,14 @@ class TtvTracker():
                 "userscript"
                 ]: message += f"{command}\n"
             
+    
+    def run_userscript(self, x):
+        for script in self.userscripts:
+            try:
+                exec(script)
+            except Exception as err:
+                print(f"error in userscript: {err}")
+    
 
     def main(self):
 
@@ -816,11 +836,7 @@ class TtvTracker():
         self.loadsettings()
         channelname = self.settings["channelname"]
         
-        for script in self.userscripts:
-            try:
-                exec(script)
-            except Exception as err:
-                print(f"error in userscript: {err}")
+        
             
         while True:
             try:
@@ -863,16 +879,16 @@ class TtvTracker():
 
 
                 elif userinput == "multitrack":
-                    if self.check_internet: self.multitrack()
+                    if self.check_internet(): self.multitrack()
                     else: print("no internet")
                 
                 
                 elif userinput == "track":
-                    if self.check_internet: self.track(data, channelname)
+                    if self.check_internet(): self.track(data, channelname)
                     else: print("no internet")
                     
                 elif userinput == "savefiles":
-                    for self.savefile in self.find_self.savefiles():
+                    for self.savefile in self.find_savefiles():
                         print(self.savefile)
                 
                 elif userinput == "settings":
