@@ -9,8 +9,8 @@ import tqdm
 import socket
 import re
 import inspect
-import telegramBot
 
+from telegramBot import TelegramBot
 from threading import Thread
 import numpy as np
 import matplotlib.pyplot as plt
@@ -81,7 +81,7 @@ class TtvTracker():
             "authorization": "ChangeMe",
             "telegram_bot_enabled": False,
             "telegram_bot_API": "",
-            "telegram_user_send_list": [],
+            "chatID": [],
             
         }
         self.savesettings()
@@ -145,7 +145,7 @@ class TtvTracker():
             
             try:
                 if self.settings["telegram_bot_enabled"]:
-                    self.bot = telegramBot(self.settings["telegram_bot_API"])
+                    self.bot = TelegramBot(self.settings["telegram_bot_API"])
             except Exception as err:
                 logging.error(err)
 
@@ -510,6 +510,10 @@ class TtvTracker():
                                 
                                 logging.info("stream started")
                                 
+                                #send a telegram message if its enabled
+                                if self.settings["telegram_bot_enabled"]:
+                                    self.bot.send(self.settings["chatID"], f"{channelname} went live!\n\n{title}")
+                                
                                 #show a windows toast
                                 self.toast.show_toast(
                                 f"{channelname} went live!",
@@ -613,6 +617,11 @@ class TtvTracker():
                             self.save(data, channelname)
                                 
                             resList = self.update_reslist(data)
+                            
+                             
+                            #send a telegram message if its enabled
+                            if self.settings["telegram_bot_enabled"]:
+                                self.bot.send(self.settings["chatID"], f"{channelname} went live!\n\n{title}")
                                 
                                 
                             logging.info(f"{channelname} stream started") # log into log.txt
