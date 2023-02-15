@@ -9,6 +9,7 @@ import tqdm
 import socket
 import re
 import inspect
+import telegramBot
 
 from threading import Thread
 import numpy as np
@@ -77,7 +78,11 @@ class TtvTracker():
     def makesettings(self):
         self.settings = {
             "channelname": f"{input('channelname: ')}",
-            "authorization": "ChangeMe"
+            "authorization": "ChangeMe",
+            "telegram_bot_enabled": False,
+            "telegram_bot_API": "",
+            "telegram_user_send_list": [],
+            
         }
         self.savesettings()
 
@@ -137,6 +142,12 @@ class TtvTracker():
                         self.settings[setting] = self.settings[setting][0]
             except Exception:
                 pass
+            
+            try:
+                if self.settings["telegram_bot_enabled"]:
+                    self.bot = telegramBot(self.settings["telegram_bot_API"])
+            except Exception as err:
+                logging.error(err)
 
         except Exception as err:
             logging.error(err),
