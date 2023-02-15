@@ -1,5 +1,4 @@
 import requests
-import json
 
 class TelegramBot():
     def __init__(self, bot_token) -> None:
