@@ -34,6 +34,9 @@ class TtvTracker():
         self.main_dir = os.path.split(os.path.abspath(__file__))[0]
         self.data_dir = os.path.join(self.main_dir, "data")
         
+        self.logo = os.path.join(self.data_dir, 'pythowo.ico')
+        self.soundalert = os.path.join(self.data_dir, 'auughhh.mp3')
+        
         self.settings = self.loadsettings()
         
         self.commands = [
@@ -492,7 +495,7 @@ class TtvTracker():
                         if alreadyStreamed[0] == False:
                             #verifies if the stream has started in the past hour to avoid false positives
                             if self.hour24[currenthour-self.TIMEDIFF] == starthour or self.hour24[currenthour+1-self.TIMEDIFF] == starthour:
-                                playsound.playsound("auughhh.mp3")
+                                playsound.playsound(self.soundalert)
 
                                 #log it to the data list
                                 week[currentday][currenthour] +=1
@@ -522,7 +525,7 @@ class TtvTracker():
                                 f"{channelname} went live!",
                                 f"{title}",
                                 duration = 20,
-                                icon_path = "pythowo.ico",
+                                icon_path = self.logo,
                                 threaded = True,
                                 )
                             else:
@@ -633,7 +636,7 @@ class TtvTracker():
                             f"{channelname} went live!",
                             f"{title}",
                             duration = 20,
-                            icon_path = "pythowo.ico",
+                            icon_path = self.logo,
                             threaded = True,
                             )
                         else:
