@@ -10,12 +10,13 @@ import socket
 import re
 import inspect
 
+from telegramBot import TelegramBot
 from threading import Thread
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.metrics import r2_score
 from win10toast import ToastNotifier
-#from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup
 
 class TtvTracker():
     def __init__(self) -> None:
@@ -77,7 +78,11 @@ class TtvTracker():
     def makesettings(self):
         self.settings = {
             "channelname": f"{input('channelname: ')}",
-            "authorization": "ChangeMe"
+            "authorization": "ChangeMe",
+            "telegram_bot_enabled": False,
+            "telegram_bot_API": "",
+            "telegram_user_send_list": [],
+            
         }
         self.savesettings()
 
@@ -137,6 +142,12 @@ class TtvTracker():
                         self.settings[setting] = self.settings[setting][0]
             except Exception:
                 pass
+            
+            try:
+                if self.settings["telegram_bot_enabled"]:
+                    self.bot = TelegramBot(self.settings["telegram_bot_API"])
+            except Exception as err:
+                logging.error(err)
 
         except Exception as err:
             logging.error(err),
@@ -361,35 +372,35 @@ class TtvTracker():
         return currentday, currenthour, currentminute
 
     def get_title(self, contents):
-        title = ""
-        try:
-            index = contents.find('description" content="') #len 22
-            index += 22
-            end_index = contents.find('"',index)
-            for char in range(index, end_index):
-                title += contents[char]
-        except Exception:
-            pass
-
-        return title
+        return contents.head.find("meta", attrs={"property":"og:description"})["content"]
+         
 
     def get_startdate(self, contents):
         starthour = ""
         try:
-            index = contents.find('startDate":"') #len 12
-            if index == -1:
-                return index
-            index += 12
-            index = contents.find('T',index)
-            index += 1
-            end_index = contents.find(':',index)
-            for num in range(index,end_index):
-                starthour += contents[num]
-            starthour = int(starthour)
+            contents = (contents.head.find("script", attrs={"type":"application/ld+json"}).contents)[0]
+            if contents:
+                index = contents.find('startDate":"') #len 12
+                index += 12
+                index = contents.find('T',index)
+                index += 1
+                end_index = contents.find(':',index)
+                for num in range(index,end_index):
+                    starthour += contents[num]
+                starthour = int(starthour)
+            else:
+                return None
         except Exception:
-            pass
+            return None
         else:
             return starthour
+    
+    def isLive(self, contents):
+        try:
+            (contents.head.find("script", attrs={"type":"application/ld+json"}).contents)[0]
+            return True
+        except Exception:
+            return False
 
     def update_reslist(self, data):
         week = data["week"]
@@ -400,7 +411,7 @@ class TtvTracker():
         return resList
 
     def get_stream(self, channelname):
-        return requests.get('https://www.twitch.tv/' +channelname).content.decode('utf-8')  #startdate -3 hour diff
+        return BeautifulSoup(requests.get('https://www.twitch.tv/' +channelname).content.decode('utf-8'),"html.parser")
 
     def get_accuracy(self, data):
         return r2_score(self.update_reslist(data), self.predict(self.get_time()[1], self.get_time()[2], self.update_reslist(data))[2](self.hour24))
@@ -473,7 +484,7 @@ class TtvTracker():
                 starthour = self.get_startdate(contents)
 
                 #see if streamer is online, also avoid misinput if streamed already
-                if 'isLiveBroadcast' in contents and starthour != -1: 
+                if self.isLive(contents) and starthour != None: 
                     if live == False:
                         if alreadyStreamed[0] == False:
                             #verifies if the stream has started in the past hour to avoid false positives
@@ -514,7 +525,7 @@ class TtvTracker():
                 #prediction
                 prediction,line,model = self.predict(currenthour,currentminute,resList)
                 
-                if 'isLiveBroadcast' in contents:
+                if self.isLive(contents):
                     print(f"{channelname} is live! \ntitle: {title}",end="\r")
                     alreadyStreamed = [True,currentday]
                     data["week"] = week
@@ -586,7 +597,7 @@ class TtvTracker():
 
             #see if streamer is online, also avoid misinput if streamed already
             if starthour != None:
-                if 'isLiveBroadcast' in contents and starthour != -1: 
+                if self.isLive(contents) and starthour != -1: 
                     if alreadyStreamed[0] == False:
                         #verifies if the stream has started in the past hour to avoid false positives
                         if self.hour24[currenthour-self.TIMEDIFF] == starthour or self.hour24[currenthour+1-self.TIMEDIFF] == starthour:
@@ -620,7 +631,7 @@ class TtvTracker():
             #prediction
             prediction,line,model = self.predict(currenthour,currentminute,resList)
             
-            if 'isLiveBroadcast' in contents:
+            if self.isLive(contents):
                 live = True
                 alreadyStreamed = [True,currentday]
                 data["week"] = week
