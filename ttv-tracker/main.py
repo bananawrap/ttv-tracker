@@ -148,7 +148,7 @@ class TtvTracker():
             
             try:
 
-                if self.settings["telegram_bot_enabled"]=="true":
+                if self.settings["telegram_bot_enabled"]=="True":
                     self.bot = TelegramBot(self.settings["telegram_bot_API"])
             except Exception as err:
                 logging.error(err)
