@@ -325,9 +325,10 @@ class TtvTracker():
             filename = os.path.basename(filename)
             filesize = int(filesize)
             
+            fullname = os.path.join(self.data_dir, filename)
 
             if not silent: progress = tqdm.tqdm(range(filesize), f"[+] Receiving {filename}", unit="B", unit_scale=True, unit_divisor=1024)
-            with open(filename, "wb") as f:
+            with open(fullname, "wb") as f:
                 while True:
 
                     bytes_read = s.recv(BUFFER_SIZE)
@@ -341,13 +342,14 @@ class TtvTracker():
                 if not silent: print("")
             
         elif message == "1":
-            filename = f"{channelname}_data.json"
+            fullname = os.path.join(self.data_dir, f'{channelname}_data.json')
             filesize = os.path.getsize(filename)
             
             s.send(f"{filename}{SEPARATOR}{filesize}".encode())
             time.sleep(1)
             if not silent: progress = tqdm.tqdm(range(filesize), f"[+] Sending {filename}", unit="B", unit_scale=True, unit_divisor=1024)
-            with open(filename, "rb") as f:
+            
+            with open(fullname, 'rb') as f:
                 while True:
 
                     bytes_read = f.read(BUFFER_SIZE)
