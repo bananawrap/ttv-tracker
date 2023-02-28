@@ -32,6 +32,10 @@ class TtvTracker():
         self.WEEKSTR = ["monday","tuesday","wednesday","thursday","friday","saturday","sunday"]
 
         self.main_dir = os.path.split(os.path.abspath(__file__))[0]
+        self.data_dir = os.path.join(self.main_dir, "data")
+        
+        self.logo = os.path.join(self.data_dir, 'pythowo.ico')
+        self.soundalert = os.path.join(self.data_dir, 'auughhh.mp3')
         
         self.settings = self.loadsettings()
         
@@ -81,14 +85,13 @@ class TtvTracker():
             "authorization": "ChangeMe",
             "telegram_bot_enabled": False,
             "telegram_bot_API": "",
-            "telegram_user_send_list": [],
-            
+            "telegram_chatID": "",       
         }
         self.savesettings()
 
     def load(self, channelname): #load savefile function
         try:
-            fullname = os.path.join(self.main_dir, f'{channelname}_data.json')
+            fullname = os.path.join(self.data_dir, f'{channelname}_data.json')
             with open(fullname, 'r') as file:
                 data = json.load(file)
         except Exception as err:
@@ -110,7 +113,7 @@ class TtvTracker():
 
     
     def save(self, data, channelname):
-        fullname = os.path.join(self.main_dir, f'{channelname}_data.json')
+        fullname = os.path.join(self.data_dir, f'{channelname}_data.json')
         with open(fullname, 'w') as file:
             json.dump(data, file)
             
@@ -144,7 +147,8 @@ class TtvTracker():
                 pass
             
             try:
-                if self.settings["telegram_bot_enabled"]:
+
+                if self.settings["telegram_bot_enabled"]=="true":
                     self.bot = TelegramBot(self.settings["telegram_bot_API"])
             except Exception as err:
                 logging.error(err)
@@ -362,7 +366,9 @@ class TtvTracker():
             if not silent: print(f"[+] {channelname} data is already synced")
             return
         else:
-            if not silent: print(f"[+] server message: {message}")
+            if not silent: 
+                print(f"[+] server message: {message}")
+                time.sleep(5)
         
     def get_time(self):
         currenttime = time.struct_time(time.localtime())
@@ -475,7 +481,7 @@ class TtvTracker():
                     self.save(data, channelname)
                     
                 #request stream data from twitch
-                contents = requests.get('https://www.twitch.tv/' +channelname).content.decode('utf-8')  #startdate -3 hour diff
+                contents = self.get_stream(channelname)
                 
                 #search for stream title
                 title = self.get_title(contents)
@@ -489,7 +495,7 @@ class TtvTracker():
                         if alreadyStreamed[0] == False:
                             #verifies if the stream has started in the past hour to avoid false positives
                             if self.hour24[currenthour-self.TIMEDIFF] == starthour or self.hour24[currenthour+1-self.TIMEDIFF] == starthour:
-                                playsound.playsound("auughhh.mp3")
+                                playsound.playsound(self.soundalert)
 
                                 #log it to the data list
                                 week[currentday][currenthour] +=1
@@ -510,12 +516,16 @@ class TtvTracker():
                                 
                                 logging.info("stream started")
                                 
+                                #send a telegram message if its enabled
+                                if self.settings["telegram_bot_enabled"]:
+                                    self.bot.send(self.settings["telegram_chatID"], f"{channelname} went live!\nhttps://www.twitch.tv/{channelname}\n{title}")
+                                
                                 #show a windows toast
                                 self.toast.show_toast(
                                 f"{channelname} went live!",
                                 f"{title}",
                                 duration = 20,
-                                icon_path = "pythowo.ico",
+                                icon_path = self.logo,
                                 threaded = True,
                                 )
                             else:
@@ -613,6 +623,11 @@ class TtvTracker():
                             self.save(data, channelname)
                                 
                             resList = self.update_reslist(data)
+                            
+                             
+                            #send a telegram message if its enabled
+                            if self.settings["telegram_bot_enabled"]:
+                                self.bot.send(self.settings["telegram_chatID"], f"{channelname} went live!\nhttps://www.twitch.tv/{channelname}\n{title}")
                                 
                                 
                             logging.info(f"{channelname} stream started") # log into log.txt
@@ -621,7 +636,7 @@ class TtvTracker():
                             f"{channelname} went live!",
                             f"{title}",
                             duration = 20,
-                            icon_path = "pythowo.ico",
+                            icon_path = self.logo,
                             threaded = True,
                             )
                         else:
@@ -823,7 +838,7 @@ class TtvTracker():
                 ]: message += f"{command}\n"
             
     
-    def run_userscript(self, x):
+    def run_userscript(self, x=0):
         for script in self.userscripts:
             try:
                 exec(script)
@@ -847,7 +862,7 @@ class TtvTracker():
         self.loadsettings()
         channelname = self.settings["channelname"]
         
-        
+        self.run_userscript()
             
         while True:
             try:
@@ -886,7 +901,7 @@ class TtvTracker():
                     self.settings["channelname"] = channelname
                     self.savesettings()
                     self.save(data, channelname)
-                    self.settings = self.loadsettings()
+
 
 
                 elif userinput == "multitrack":
@@ -923,7 +938,6 @@ class TtvTracker():
                 
                     
                 
-
 if __name__=="__main__": 
     
     tracker = TtvTracker()
