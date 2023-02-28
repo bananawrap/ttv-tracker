@@ -11,7 +11,6 @@ import re
 import inspect
 
 from telegramBot import TelegramBot
-from threading import Thread
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.metrics import r2_score
@@ -39,17 +38,20 @@ class TtvTracker():
         
         self.settings = self.loadsettings()
         
-        self.commands = [
-        "input",
-        "results",
-        "todaysresults",
-        "data",
-        "track",
-        "cls",
-        "set",
-        "multitrack",
-        "settings",
-        ]
+        
+        self.commands = {
+        "COMMAND":"DESCRIPTION",
+        "input":"allows the user to input new data into the selected streamer's savefile.",
+        "results":"displays a graph of the data saved in the selected savefile.",
+        "todaysresults":"displays a graph of the data saved in the selected savefile for the current day.",
+        "data":"displays the raw data saved in the selected savefile.",
+        "track":"allows the user to track the selected Twitch channel and save data about it.",
+        "multitrack":"allows the user to track multiple Twitch channels simultaneously.",
+        "cls":"clears the console window.",
+        "set":"allows the user to select the Twitch channel to track. Usage: set (channelname)",
+        "settings":"allows the user to view and modify program settings.",
+        "savefiles":"displays a list of available savefiles",
+        }
 
 
         
@@ -96,8 +98,8 @@ class TtvTracker():
                 data = json.load(file)
         except Exception as err:
             logging.error(err)
-            print("failed to load. Check log.txt")
-            if input(f"try to make a new save for {channelname}? y/n : ") == "y":
+            print(f"no savefile found for {channelname}")
+            if input(f"make a new save for {channelname}? y/n : ") == "y":
                 self.save(self.makesave(), channelname)
                 try:
                     with open(fullname, 'r') as file:
@@ -107,6 +109,8 @@ class TtvTracker():
                     print(err)
                 else:
                     return data
+            else:
+                return None
         
         else: 
             return data
@@ -214,7 +218,7 @@ class TtvTracker():
         for j in range(len(self.hour24)):
             print(f"{str(j)}: {round((model(j)/sum(mode))*100,1)}%")
 
-        print("accuracy:", r2_score(ypoints, model(self.hour24)))
+        print(f"accuracy: {round((r2_score(ypoints, model(self.hour24)))*100)}%")
         if not isResList:
             plt.title(currentdaytxt)
         plt.plot(self.hour24,ypoints)
@@ -223,29 +227,42 @@ class TtvTracker():
         plt.show()
         
 
-    def displaydata(self, data, channelname): # basically a fancy and a complicated way of centering the different outputs
+    def displaydata(self, data, channelname): # defines a method called displaydata with three parameters: self, data, and channelname
+        resList = self.update_reslist(data) # calls the update_reslist method of the current object with data as an argument and assigns the result to resList
+        week = data["week"] # assigns the "week" key from data to the variable week
         
-        resList = self.update_reslist(data)
-        week = data["week"]
-        
+        # prints the channel name
         print(f"showing data for {channelname}")
+        
+        # constructs a string representing the header row of the table, with hours in columns
         string = f"hour:  {' '*(len(self.WEEKSTR[2])-len('hour'))}"
         for j, hour in enumerate(self.hour24):
             string += f"{hour}  "
+        
+        # prints a divider and the "DAYS" label
         print(f"{' '*round((len(string))/2)}/////DAYS/////")
-        #print(f"hour:  {' '*(len(self.WEEKSTR[2])-len('hour'))}{self.hour24}")
+        
+        # prints the header row of the table
         print(string)
+        
+        # iterates over each day in the week and prints a row for each day
         for i, day in enumerate(week):
+            # constructs a string representing the row label for the current day
             string = f"{self.WEEKSTR[i]}:  {' '*(len(self.WEEKSTR[2])-len(self.WEEKSTR[i]))}"
             for j, hour in enumerate(day):
+                # appends each hour's value for the current day to the row string
                 string += f"{hour}|{' '*len(str(self.hour24[j]))}"
-            print(string)
-        #print(f"{' '*round((len(self.WEEKSTR[2])+(24*3))/2)}/////TOTAL/////")
+            print(string) # prints the completed row
+        
+        # prints an empty line
         print("")
+        
+        # constructs a string representing the totals row of the table, with totals for each hour in columns
         string = f"total:  {' '*(len(self.WEEKSTR[2])-len('total'))}"
         for j, hour in enumerate(resList):
             string += f"{hour}|{' '*len(str(self.hour24[j]))}"
-        print(string)
+        print(string) # prints the completed totals row
+
                 
             
     def datainput(self, data, channelname): #manually add logs to database
@@ -409,6 +426,9 @@ class TtvTracker():
             return True
         except Exception:
             return False
+        
+    def get_methods(self):
+        return [m for m in dir(TtvTracker()) if inspect.ismethod(getattr(TtvTracker(), m))]
 
     def update_reslist(self, data):
         week = data["week"]
@@ -679,8 +699,11 @@ class TtvTracker():
             if "add" in userinput.split(" ")[0]:
                 if not self.findword("all")(userinput):
                     channelname = userinput.split(" ")[1]
-                    listeners[channelname] = self.load(channelname)
-                    message = f"{channelname} added"
+                    listeners[channelname] = self.load(channelname)      
+                    if listeners[channelname]!=None: 
+                        message = f"{channelname} added"
+                    else:
+                        listeners.pop(channelname)
                 else:
                     for channelname in self.find_savefiles():
                         listeners[channelname] = self.load(channelname)
@@ -688,9 +711,13 @@ class TtvTracker():
                 
                 
             elif "rm" in userinput.split(" ")[0]:
-                channelname = userinput.split(" ")[1]
-                listeners.pop(channelname)
-                message = f"{channelname} removed"
+                if not self.findword("all")(userinput):
+                    channelname = userinput.split(" ")[1]
+                    listeners.pop(channelname)
+                    message = f"{channelname} removed"
+                else:
+                    message
+                    listeners.clear()
             
             elif "back" in userinput:
                 break
@@ -710,13 +737,13 @@ class TtvTracker():
                     try:
                         if self.check_port(self.ips["pi"],5785):
                             self.sync(listeners[streamer], streamer)
-                            time.sleep(5)
+                            time.sleep(3)
                     except ConnectionError:
                         print("no internet")
                     except Exception as err:
                         logging.error(err)
-                        time.sleep(5)
-                
+                        
+                total_errors = 0
                 while True:
                     try:
                         self.clear()
@@ -758,9 +785,11 @@ class TtvTracker():
                     except Exception as err:
                         if not self.check_internet():
                             print("no internet")
+                            time.sleep(5)
                         else:
                             logging.error(err)
-                            message = "an error occured during tracking. Check log.txt"
+                            total_errors += 1
+                            message = f"an error occured during tracking. X{total_errors}"
                         
             elif "help" in userinput:
                 message += "usage: first do 'add streamername' and then 'play'\n"
@@ -812,7 +841,6 @@ class TtvTracker():
                 message = f"{userinput.split(' ')[1]} removed"
             
             elif "userscript" in userinput.split(" ")[0]:
-                group = userinput.split(" ")[1]
                 name = userinput.split(" ")[2]
                 value = userinput.split(" ")[3:]
                 if len(value) != 0:
@@ -840,14 +868,13 @@ class TtvTracker():
                 ]: message += f"{command}\n"
             
     
-    def run_userscript(self, x=0):
+    def run_userscript(self):
         for script in self.userscripts:
             try:
                 exec(script)
             except Exception as err:
                 print(f"error in userscript: {err}")
     
-
     def main(self):
 
         #setting up logs and disabling unnecessary loggers
@@ -892,9 +919,14 @@ class TtvTracker():
                     
                     
                 elif userinput == "help":
-                    
+                    print("")
                     for command in self.commands:
-                        print(command)
+                        print(f"{command}   {' '*(len('todaysresults')-len(command))}{self.commands[command]}")
+                    
+                    print("\nfunctions can be used directly if you have (self.) before them")
+                    methods = self.get_methods()
+                    for i in range(0,len(methods),2):
+                        print(f"{methods[i]}(){' '*(len('find_savefiles()')-len(methods[i]))}\t{methods[i+1]}()")
                     
                     
                 elif self.findword("set")(userinput.split(" ")[0]):
@@ -937,6 +969,8 @@ class TtvTracker():
                 
             except Exception as err:
                 print(err)
+    
+
                 
                     
                 
