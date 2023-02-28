@@ -930,12 +930,14 @@ class TtvTracker():
                     
                     
                 elif self.findword("set")(userinput.split(" ")[0]):
-                    channelname = userinput.split(" ")[1]
-                    data = self.load(channelname)
-                    self.settings["channelname"] = channelname
-                    self.savesettings()
-                    self.save(data, channelname)
-
+                    try:
+                        channelname = userinput.split(" ")[1]
+                        data = self.load(channelname)
+                        self.settings["channelname"] = channelname
+                        self.savesettings()
+                        self.save(data, channelname)
+                    except IndexError:
+                        print("set needs streamer's twitch name")
 
 
                 elif userinput == "multitrack":
@@ -964,8 +966,6 @@ class TtvTracker():
                             break
                         else:
                             print(f"ran into a problem, try help. error: {err}")
-            except IndexError:
-                print("set needs streamer's twitch name")
                 
             except Exception as err:
                 print(err)
