@@ -733,15 +733,15 @@ class TtvTracker():
                         message += f"{channelname} added\n"
                     autoplay = False
                 message = ""
-                for streamer in listeners:
-                    try:
-                        if self.check_port(self.ips["pi"],5785):
+                if self.check_port(self.ips["pi"],5785):
+                    for streamer in listeners:
+                        try:
                             self.sync(listeners[streamer], streamer)
                             time.sleep(3)
-                    except ConnectionError:
-                        print("no internet")
-                    except Exception as err:
-                        logging.error(err)
+                        except ConnectionError:
+                            print("no internet")
+                        except Exception as err:
+                            logging.error(err)
                         
                 total_errors = 0
                 while True:
