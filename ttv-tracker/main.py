@@ -36,7 +36,7 @@ class TtvTracker():
         self.logo = os.path.join(self.data_dir, 'pythowo.ico')
         self.soundalert = os.path.join(self.data_dir, 'auughhh.mp3')
         
-        self.settings = self.loadsettings()
+        self.settings = self.load_settings()
         
         
         self.commands = {
@@ -65,7 +65,7 @@ class TtvTracker():
 
 
 
-    def makesave(self):
+    def make_save(self):
         monday =    [0 for x in range(0,24)]
         tuesday =   [0 for x in range(0,24)]
         wednesday = [0 for x in range(0,24)]
@@ -81,7 +81,7 @@ class TtvTracker():
                 }
         return data
     
-    def makesettings(self):
+    def make_settings(self):
         self.settings = {
             "channelname": f"{input('channelname: ')}",
             "authorization": "ChangeMe",
@@ -89,7 +89,7 @@ class TtvTracker():
             "telegram_bot_API": "",
             "telegram_chatID": "",       
         }
-        self.savesettings()
+        self.save_settings()
 
     def load(self, channelname): #load savefile function
         try:
@@ -100,7 +100,7 @@ class TtvTracker():
             logging.error(err)
             print(f"no savefile found for {channelname}")
             if input(f"make a new save for {channelname}? y/n : ") == "y":
-                self.save(self.makesave(), channelname)
+                self.save(self.make_save(), channelname)
                 try:
                     with open(fullname, 'r') as file:
                         data = json.load(file)
@@ -122,7 +122,7 @@ class TtvTracker():
             json.dump(data, file)
             
             
-    def savesettings(self):
+    def save_settings(self):
         for setting in self.settings:
             if self.settings[setting] in self.userscripts:
                 isUserscript = True
@@ -132,10 +132,10 @@ class TtvTracker():
         fullname = os.path.join(self.main_dir, 'settings.json')
         with open(fullname, "w") as file:
             json.dump(self.settings,file)
-        self.loadsettings()
+        self.load_settings()
             
             
-    def loadsettings(self):
+    def load_settings(self):
         try:
             self.userscripts = []
             fullname = os.path.join(self.main_dir, 'settings.json')
@@ -159,18 +159,18 @@ class TtvTracker():
 
         except Exception as err:
             logging.error(err),
-            self.makesettings()
+            self.make_settings()
             with open(fullname, "r") as file:
                 self.settings = json.load(file)
 
 
-    def setTarget(self, channelname): 
+    def set_target(self, channelname): 
         print(f"current target: {channelname}")
         try:
             userinput = {"channelname":input("set target: ")}
             if userinput["channelname"] != "":
-                self.savesettings(userinput)
-                return self.loadsettings()
+                self.save_settings(userinput)
+                return self.load_settings()
 
             else:
                 raise ValueError("empty name")
@@ -227,7 +227,7 @@ class TtvTracker():
         plt.show()
         
 
-    def displaydata(self, data, channelname): # defines a method called displaydata with three parameters: self, data, and channelname
+    def display_data(self, data, channelname): # defines a method called displaydata with three parameters: self, data, and channelname
         resList = self.update_reslist(data) # calls the update_reslist method of the current object with data as an argument and assigns the result to resList
         week = data["week"] # assigns the "week" key from data to the variable week
         
@@ -265,7 +265,7 @@ class TtvTracker():
 
                 
             
-    def datainput(self, data, channelname): #manually add logs to database
+    def data_input(self, data, channelname): #manually add logs to database
         
         week = data["week"]
         run = True
@@ -512,9 +512,9 @@ class TtvTracker():
                 starthour = self.get_startdate(contents)
 
                 #see if streamer is online, also avoid misinput if streamed already
-                if self.isLive(contents) and starthour != None: 
-                    if live == False:
-                        if alreadyStreamed[0] == False:
+                if self.isLive(contents) and starthour is not None: 
+                    if not live:
+                        if not alreadyStreamed[0]:
                             #verifies if the stream has started in the past hour to avoid false positives
                             if self.hour24[currenthour-self.TIMEDIFF] == starthour or self.hour24[currenthour+1-self.TIMEDIFF] == starthour:
                                 playsound.playsound(self.soundalert)
@@ -539,7 +539,7 @@ class TtvTracker():
                                 logging.info("stream started")
                                 
                                 #send a telegram message if its enabled
-                                if self.settings["telegram_bot_enabled"]:
+                                if self.settings["telegram_bot_enabled"]=="True":
                                     self.bot.send(self.settings["telegram_chatID"], f"{channelname} went live!\nhttps://www.twitch.tv/{channelname}\n{title}")
                                 
                                 #show a windows toast
@@ -628,9 +628,9 @@ class TtvTracker():
             starthour = self.get_startdate(contents)
 
             #see if streamer is online, also avoid misinput if streamed already
-            if starthour != None:
+            if starthour is not None:
                 if self.isLive(contents) and starthour != -1: 
-                    if alreadyStreamed[0] == False:
+                    if not alreadyStreamed[0]:
                         #verifies if the stream has started in the past hour to avoid false positives
                         if self.hour24[currenthour-self.TIMEDIFF] == starthour or self.hour24[currenthour+1-self.TIMEDIFF] == starthour:
                             #log it to the data list
@@ -648,8 +648,8 @@ class TtvTracker():
                             
                              
                             #send a telegram message if its enabled
-                            if self.settings["telegram_bot_enabled"]:
-                                self.bot.send(self.settings["telegram_chatID"], f"{channelname} went live!\nhttps://www.twitch.tv/{channelname}\n{title}")
+                            if self.settings["telegram_bot_enabled"]=="True":
+                                    self.bot.send(self.settings["telegram_chatID"], f"{channelname} went live!\nhttps://www.twitch.tv/{channelname}\n{title}")
                                 
                                 
                             logging.info(f"{channelname} stream started") # log into log.txt
@@ -832,7 +832,7 @@ class TtvTracker():
             
             if "set" in userinput.split(" ")[0]:
                     self.settings[userinput.split(" ")[1]] = userinput.split(" ")[2]
-                    self.savesettings()
+                    self.save_settings()
                     message = f"{userinput.split(' ')[1]} set with the value of {userinput.split(' ')[2]}"
                 
                 
@@ -846,7 +846,7 @@ class TtvTracker():
                 if len(value) != 0:
                     self.settings[name] = value
                     self.userscripts = value
-                    self.savesettings()
+                    self.save_settings()
                     message = f"{name} set with the value of {value}"
                 else:
                     message = f"invalid input\n"
@@ -888,7 +888,7 @@ class TtvTracker():
         logging.getLogger("urllib3.poolmanager").disabled = True
         logging.getLogger("requests").disabled = True
 
-        self.loadsettings()
+        self.load_settings()
         channelname = self.settings["channelname"]
         
         self.run_userscript()
@@ -899,11 +899,11 @@ class TtvTracker():
                 
                 userinput = input("=> ")
                 if userinput == "input":
-                    self.datainput(data, channelname)
+                    self.data_input(data, channelname)
                 
                     
                 elif userinput == "data":
-                    self.displaydata(data, channelname)
+                    self.display_data(data, channelname)
                     
                     
                 elif userinput == "todaysresults":
@@ -959,6 +959,8 @@ class TtvTracker():
                 
                 #simple console
                 else:
+                    if userinput == "exit":
+                        return
                     try:
                         exec(userinput)
                     except Exception as err:
