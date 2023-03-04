@@ -711,15 +711,15 @@ class TtvTracker():
                         message += f"{channelname} added\n"
                     autoplay = False
                 message = ""
-                for streamer in listeners:
-                    try:
-                        if self.check_port(self.ips["pi"],5785):
+                if self.check_port(self.ips["pi"],5785):
+                    for streamer in listeners:
+                        try:
                             self.sync(listeners[streamer], streamer)
                             time.sleep(3)
-                    except ConnectionError:
-                        print("no internet")
-                    except Exception as err:
-                        logging.error(err)
+                        except ConnectionError:
+                            print("no internet")
+                        except Exception as err:
+                            logging.error(err)
                         
                 total_errors = 0
                 while True:
@@ -918,12 +918,14 @@ class TtvTracker():
                     
                     
                 elif self.findword("set")(userinput.split(" ")[0]):
-                    channelname = userinput.split(" ")[1]
-                    data = self.load(channelname)
-                    self.settings["channelname"] = channelname
-                    self.save_settings()
-                    self.save(data, channelname)
-
+                    try:
+                        channelname = userinput.split(" ")[1]
+                        data = self.load(channelname)
+                        self.settings["channelname"] = channelname
+                        self.savesettings()
+                        self.save(data, channelname)
+                    except IndexError:
+                        print("set needs streamer's twitch name")
 
 
                 elif userinput == "multitrack":
@@ -963,6 +965,5 @@ class TtvTracker():
                     
                 
 if __name__=="__main__": 
-    
     tracker = TtvTracker()
     tracker.main()
