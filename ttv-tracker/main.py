@@ -51,6 +51,7 @@ class TtvTracker():
         "set":"allows the user to select the Twitch channel to track. Usage: set (channelname)",
         "settings":"allows the user to view and modify program settings.",
         "savefiles":"displays a list of available savefiles",
+        "exit":"self explanatory",
         }
 
 
@@ -316,10 +317,6 @@ class TtvTracker():
             
     def sync(self, data, channelname, silent=False):
         
-        resList = self.update_reslist(data)
-        totalsum = sum(resList)
-        
-        SEPARATOR = "<SEPARATOR>"
         BUFFER_SIZE = 1024
         
         port = 5785
@@ -332,57 +329,38 @@ class TtvTracker():
         s.connect((self.ips["pi"], port))
         if not silent: print("[+] Connected.")
 
-        s.send(f"{authorization}{SEPARATOR}{channelname}{SEPARATOR}{totalsum}".encode())
+        message = json.dumps({
+            "authorization":authorization,
+            "channelname":channelname,
+            "data":data,
+        })
+
+        s.send(message.encode())
+             
         
-        message = s.recv(BUFFER_SIZE).decode()
+        received = json.loads(s.recv(BUFFER_SIZE).decode())
         
-        if message == "2":
-            received = s.recv(BUFFER_SIZE).decode()
-            filename, filesize = received.split(SEPARATOR)
-            filename = os.path.basename(filename)
-            filesize = int(filesize)
+        if received["option"] == "send_to_client":
             
-            fullname = os.path.join(self.data_dir, filename)
+            received_channelname = received["channelname"]
+            received_data = received["data"]
 
-            if not silent: progress = tqdm.tqdm(range(filesize), f"[+] Receiving {filename}", unit="B", unit_scale=True, unit_divisor=1024)
-            with open(fullname, "wb") as f:
-                while True:
-
-                    bytes_read = s.recv(BUFFER_SIZE)
-                    if not bytes_read:    
-                        break
-
-                    f.write(bytes_read)
-                    if not silent: progress.update(len(bytes_read))
-                    
-                s.close()
-                if not silent: print("")
+            if not silent: print(f"[+] saving {received_channelname}_data.json from the server")
             
-        elif message == "1":
-            fullname = os.path.join(self.data_dir, f'{channelname}_data.json')
-            filesize = os.path.getsize(filename)
+            self.save(received_data,received_channelname)
             
-            s.send(f"{filename}{SEPARATOR}{filesize}".encode())
-            time.sleep(1)
-            if not silent: progress = tqdm.tqdm(range(filesize), f"[+] Sending {filename}", unit="B", unit_scale=True, unit_divisor=1024)
-            
-            with open(fullname, 'rb') as f:
-                while True:
-
-                    bytes_read = f.read(BUFFER_SIZE)
-                    if not bytes_read:
-
-                        break
-
-                    s.sendall(bytes_read)
-
-                    progress.update(len(bytes_read))
             s.close()
             if not silent: print("")
-        elif message == "0":
-            s.send("".encode())
+            
+        elif received["option"] == "send_to_server":
+            
+            if not silent: print(f"[+] sent {received_channelname}_data.json to the server")
+            
             s.close()
-            if not silent: print(f"[+] {channelname} data is already synced")
+            if not silent: print("")
+        elif received["option"] == "synced":
+            s.close()
+            if not silent: print(f"[+] {channelname}_data.json was in sync with the server")
             return
         else:
             if not silent: 
@@ -540,7 +518,7 @@ class TtvTracker():
                                 
                                 #send a telegram message if its enabled
                                 if self.settings["telegram_bot_enabled"]=="True":
-                                    self.bot.send(self.settings["telegram_chatID"], f"{channelname} went live!\nhttps://www.twitch.tv/{channelname}\n{title}")
+                                    self.bot.send(self.settings["telegram_chatID"], f"{channelname} went live!\n{title}\nhttps://www.twitch.tv/{channelname}")
                                 
                                 #show a windows toast
                                 self.toast.show_toast(
@@ -649,7 +627,7 @@ class TtvTracker():
                              
                             #send a telegram message if its enabled
                             if self.settings["telegram_bot_enabled"]=="True":
-                                    self.bot.send(self.settings["telegram_chatID"], f"{channelname} went live!\nhttps://www.twitch.tv/{channelname}\n{title}")
+                                    self.bot.send(self.settings["telegram_chatID"], f"{channelname} went live!\n{title}\nhttps://www.twitch.tv/{channelname}")
                                 
                                 
                             logging.info(f"{channelname} stream started") # log into log.txt
@@ -831,9 +809,16 @@ class TtvTracker():
             userinput = input("=> ")
             
             if "set" in userinput.split(" ")[0]:
+                try:
+                    num = int(userinput.split(" ")[1])-1
+                except ValueError:
                     self.settings[userinput.split(" ")[1]] = userinput.split(" ")[2]
                     self.save_settings()
                     message = f"{userinput.split(' ')[1]} set with the value of {userinput.split(' ')[2]}"
+                else:
+                    self.settings[list(self.settings.keys())[num]] = userinput.split(" ")[2]
+                    self.save_settings()
+                    message = f"{list(self.settings.keys())[num]} set with the value of {userinput.split(' ')[2]}"
                 
                 
             elif "rm" in userinput.split(" ")[0]:
@@ -926,7 +911,10 @@ class TtvTracker():
                     print("\nfunctions can be used directly if you have (self.) before them")
                     methods = self.get_methods()
                     for i in range(0,len(methods),2):
-                        print(f"{methods[i]}(){' '*(len('find_savefiles()')-len(methods[i]))}\t{methods[i+1]}()")
+                        try:
+                            print(f"{methods[i]}(){' '*(len('find_savefiles()')-len(methods[i]))}\t{methods[i+1]}()")
+                        except IndexError:
+                            print(f"{methods[i]}()")
                     
                     
                 elif self.findword("set")(userinput.split(" ")[0]):
@@ -962,7 +950,7 @@ class TtvTracker():
                     try:
                         exec(userinput)
                     except Exception as err:
-                        
+                        logging.exception(err)
                         print(f"ran into a problem, try help. error: {err}")
             except IndexError:
                 print("set needs streamer's twitch name")
