@@ -358,10 +358,13 @@ class TtvTracker():
             
             s.close()
             if not silent: print("")
+            
         elif received["option"] == "synced":
             s.close()
             if not silent: print(f"[+] {channelname}_data.json was in sync with the server")
+            if not silent: print("")
             return
+        
         else:
             if not silent: 
                 print(f"[+] server message: {message}")
@@ -373,32 +376,37 @@ class TtvTracker():
         currenthour = currenttime[3]
         currentday = currenttime[6]
         return currentday, currenthour, currentminute
+    
+    def get_stream_info(self, contents):
+        if self.is_live(contents):
+            return json.loads((contents.head.find("script", attrs={"type":"application/ld+json"}).contents)[0])[0]
+            
+
+            
 
     def get_title(self, contents):
         return contents.head.find("meta", attrs={"property":"og:description"})["content"]
          
 
     def get_startdate(self, contents):
-        starthour = ""
-        try:
-            contents = (contents.head.find("script", attrs={"type":"application/ld+json"}).contents)[0]
-            if contents:
-                index = contents.find('startDate":"') #len 12
-                index += 12
-                index = contents.find('T',index)
-                index += 1
-                end_index = contents.find(':',index)
-                for num in range(index,end_index):
-                    starthour += contents[num]
-                starthour = int(starthour)
-            else:
-                return None
-        except Exception:
-            return None
-        else:
-            return starthour
+        if self.is_live(contents):
+            full_time = self.get_stream_info(contents)["publication"]["startDate"]
+            
+            date = full_time.split("T")[0]
+            hour = full_time.split("T")[1].split(":")[0]
+            minute = full_time.split("T")[1].split(":")[1]
+            
+            start_time = {"date": date, 
+                          "hour": hour, 
+                          "minute": minute
+            } 
+            
+            return start_time
+        return None
+        
+            
     
-    def isLive(self, contents):
+    def is_live(self, contents):
         try:
             (contents.head.find("script", attrs={"type":"application/ld+json"}).contents)[0]
             return True
@@ -424,6 +432,7 @@ class TtvTracker():
     
     def check_internet(self):
         return self.check_port("google.com",80)
+    
 
     def track(self, data, channelname):
         """
@@ -487,10 +496,13 @@ class TtvTracker():
                 title = self.get_title(contents)
                 
                 #check stream startTime for verification
-                starthour = self.get_startdate(contents)
+                start_time = self.get_startdate(contents)
+                
+                starthour = start_time["hour"]
+
 
                 #see if streamer is online, also avoid misinput if streamed already
-                if self.isLive(contents) and starthour is not None: 
+                if self.is_live(contents) and starthour is not None: 
                     if not live:
                         if not alreadyStreamed[0]:
                             #verifies if the stream has started in the past hour to avoid false positives
@@ -506,9 +518,13 @@ class TtvTracker():
                                 #confirm that the stream is live
                                 live = True
 
-                                #pack the information into a data dictionary and self.save it to (channelname)_data.json
-                                data["week"] = week
-                                data["alreadyStreamed"] = alreadyStreamed
+                                #pack the information into a data dictionary and save it to (channelname)_data.json
+                                data = {
+                                "week":week,
+                                "alreadyStreamed":alreadyStreamed,
+                                "lastStream":start_time,
+                                }
+                                
                                 self.save(data, channelname)
                                 
                                 resList = self.update_reslist(data)
@@ -535,12 +551,14 @@ class TtvTracker():
                 #prediction
                 prediction,line,model = self.predict(currenthour,currentminute,resList)
                 
-                if self.isLive(contents):
+                if self.is_live(contents):
                     print(f"{channelname} is live! \ntitle: {title}",end="\r")
                     alreadyStreamed = [True,currentday]
-                    data["week"] = week
-                    data["alreadyStreamed"] = alreadyStreamed
-                    streamEndHour = copy.copy(currenthour)
+                    data = {
+                            "week":week,
+                            "alreadyStreamed":alreadyStreamed,
+                            "lastStream":start_time,
+                    }
                     self.save(data, channelname)
                 
                 elif alreadyStreamed[0] == True and alreadyStreamed[1] == currentday and live == False:
@@ -602,24 +620,38 @@ class TtvTracker():
             title = self.get_title(contents)
                 
                 
-            #check stream startTime for verification
-            starthour = self.get_startdate(contents)
+            #check stream start time
+            start_time = self.get_startdate(contents)
+            
+            if start_time is not None:
+                starthour  = start_time["hour"]
+            
+
 
             #see if streamer is online, also avoid misinput if streamed already
-            if starthour is not None:
-                if self.isLive(contents) and starthour != -1: 
+            if start_time is not None:
+                if self.is_live(contents) and starthour != -1: 
                     if not alreadyStreamed[0]:
+                        
                         #verifies if the stream has started in the past hour to avoid false positives
                         if self.hour24[currenthour-self.TIMEDIFF] == starthour or self.hour24[currenthour+1-self.TIMEDIFF] == starthour:
+                            
                             #log it to the data list
                             week[currentday][currenthour] +=1
+                            
                             #set the already streamed flag to true
                             alreadyStreamed = [True,currentday]
+                            
                             #confirm that the stream is live
                             live = True
-                            #pack the information into a data dictionary and self.save it to (channelname)_data.json
-                            data["week"] = week
-                            data["alreadyStreamed"] = alreadyStreamed
+                            
+                            #pack the information into a data dictionary and save it to (channelname)_data.json
+                            data = {
+                            "week":week,
+                            "alreadyStreamed":alreadyStreamed,
+                            "lastStream":start_time,
+                            }
+
                             self.save(data, channelname)
                                 
                             resList = self.update_reslist(data)
@@ -646,11 +678,14 @@ class TtvTracker():
             #prediction
             prediction,line,model = self.predict(currenthour,currentminute,resList)
             
-            if self.isLive(contents):
+            if self.is_live(contents):
                 live = True
                 alreadyStreamed = [True,currentday]
-                data["week"] = week
-                data["alreadyStreamed"] = alreadyStreamed
+                data = {
+                "week":week,
+                "alreadyStreamed":alreadyStreamed,
+                "lastStream":start_time,
+                }
                 self.save(data, channelname)
             else:
                 live = False
@@ -960,10 +995,7 @@ class TtvTracker():
             except Exception as err:
                 print(err)
     
-
-                
-                    
-                
+          
 if __name__=="__main__": 
     tracker = TtvTracker()
     tracker.main()
