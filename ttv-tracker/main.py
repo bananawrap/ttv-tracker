@@ -498,11 +498,12 @@ class TtvTracker():
                 #check stream startTime for verification
                 start_time = self.get_startdate(contents)
                 
-                starthour = start_time["hour"]
+                if start_time is not None:
+                    starthour = start_time["hour"]
 
 
                 #see if streamer is online, also avoid misinput if streamed already
-                if self.is_live(contents) and starthour is not None: 
+                if self.is_live(contents) and start_time is not None: 
                     if not live:
                         if not alreadyStreamed[0]:
                             #verifies if the stream has started in the past hour to avoid false positives
