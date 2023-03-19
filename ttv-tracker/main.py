@@ -958,7 +958,7 @@ class TtvTracker():
                         channelname = userinput.split(" ")[1]
                         data = self.load(channelname)
                         self.settings["channelname"] = channelname
-                        self.savesettings()
+                        self.save_settings()
                         self.save(data, channelname)
                     except IndexError:
                         print("set needs streamer's twitch name")
