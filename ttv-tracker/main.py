@@ -27,7 +27,7 @@ class TtvTracker():
         self.toast = ToastNotifier()
 
         self.TIMEDIFF = 3
-        self.hour24 = [x for x in range(0,24)]
+        self.hour24 = range(0,24)
         self.WEEKSTR = ["monday","tuesday","wednesday","thursday","friday","saturday","sunday"]
 
         self.main_dir = os.path.split(os.path.abspath(__file__))[0]
@@ -42,9 +42,7 @@ class TtvTracker():
         self.commands = {
         "COMMAND":"DESCRIPTION",
         "input":"allows the user to input new data into the selected streamer's savefile.",
-        "results":"displays a graph of the data saved in the selected savefile.",
-        "todaysresults":"displays a graph of the data saved in the selected savefile for the current day.",
-        "data":"displays the raw data saved in the selected savefile.",
+        "data":"displays the raw data saved and displays a graph of the data in the selected savefile.",
         "track":"allows the user to track the selected Twitch channel and save data about it.",
         "multitrack":"allows the user to track multiple Twitch channels simultaneously.",
         "cls":"clears the console window.",
@@ -196,35 +194,53 @@ class TtvTracker():
             return None, None, None
 
 
-    def graph(self, isResList, data):
+    def graph(self, data):
         #uses resList or current day for graph and predictions
 
         currentday, currenthour, currentminute = self.get_time()
         resList = self.update_reslist(data)
         week = data["week"]
         
-        if not isResList:
-            currentdaytxt = self.WEEKSTR[currentday]
-            mode = week[currentday]
-        else:
-            mode = resList
 
+        currentdaytxt = self.WEEKSTR[currentday]
+        currentday = week[currentday]
 
+        fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(nrows=2, ncols=2, figsize=(10,4))
+        plt.subplots_adjust(left=0.1, right=0.9, bottom=0.1, top=0.9, wspace=0.3, hspace=0.4)
 
-        ypoints = mode
     
-        prediction, line, model = self.predict(currenthour,currentminute,mode)
-        print(f"current odds:{prediction}%")
-
-        for j in range(len(self.hour24)):
-            print(f"{str(j)}: {round((model(j)/sum(mode))*100,1)}%")
-
-        print(f"accuracy: {round((r2_score(ypoints, model(self.hour24)))*100)}%")
-        if not isResList:
-            plt.title(currentdaytxt)
-        plt.plot(self.hour24,ypoints)
-        plt.plot(line,model(line))
-        plt.grid()
+        prediction, line, model = self.predict(currenthour,currentminute,resList)
+        
+        ax1.set_title("Total")
+        ax1.plot(self.hour24,resList)
+        ax1.plot(line,model(line))
+        ax1.grid()
+        ax1.set_xticks(range(0,23,2))
+        
+        prediction, line, model = self.predict(currenthour,currentminute,currentday)
+        
+        ax2.set_title(currentdaytxt)
+        ax2.plot(self.hour24,currentday)
+        ax2.plot(line,model(line))
+        ax2.grid()
+        ax2.set_xticks(range(0,23,2))
+        
+        ax3.set_title("streams per day")
+        for i, day in enumerate(week):
+            ax3.bar(i, day)
+        ax3.set_xticks(range(7))
+        ax3.set_xticklabels([x[:3] for x in self.WEEKSTR])
+        ax3.grid(axis="y")
+        
+        ax4.set_title("Accuracy")
+        ax4.bar(0,self.get_accuracy(resList)*100)
+        ax4.bar(1,self.get_accuracy(currentday)*100)
+        ax4.set_xticks((0,1))
+        ax4.set_xticklabels(("Total accuracy", "current day's accuracy"))
+        ax4.set_yticks(range(0,110,10))
+        ax4.set_yticklabels([f"{str(x)}%" for x in range(0,110,10)])
+        ax4.grid(axis="y")
+        
         plt.show()
         
 
@@ -427,8 +443,8 @@ class TtvTracker():
     def get_stream(self, channelname):
         return BeautifulSoup(requests.get('https://www.twitch.tv/' +channelname).content.decode('utf-8'),"html.parser")
 
-    def get_accuracy(self, data):
-        return r2_score(self.update_reslist(data), self.predict(self.get_time()[1], self.get_time()[2], self.update_reslist(data))[2](self.hour24))
+    def get_accuracy(self, array):
+        return r2_score(array, self.predict(self.get_time()[1], self.get_time()[2], array)[2](self.hour24))
     
     def check_internet(self):
         return self.check_port("google.com",80)
@@ -776,7 +792,7 @@ class TtvTracker():
                                         "live":streaminfo[2], 
                                         }
                             try:
-                                accuracyrating = accuracyratings[round(self.get_accuracy(streaminfo["data"])*100/25)]
+                                accuracyrating = accuracyratings[round(self.get_accuracy(self.update_reslist(streaminfo["data"]))*100/25)-1]
                             except Exception:
                                 accuracyrating = "none"
                             
@@ -925,14 +941,7 @@ class TtvTracker():
                     
                 elif userinput == "data":
                     self.display_data(data, channelname)
-                    
-                    
-                elif userinput == "todaysresults":
-                    self.graph(False, data)
-                
-                
-                elif userinput == "results":
-                    self.graph(True, data)
+                    self.graph(data)
                 
                 
                 elif userinput == "cls":
