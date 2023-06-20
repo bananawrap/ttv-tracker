@@ -740,6 +740,8 @@ class TtvTracker():
                             time.sleep(3)
                         except ConnectionError:
                             print("no internet")
+                            time.sleep(5)
+                            break
                         except Exception as err:
                             logging.error(err)
                         
