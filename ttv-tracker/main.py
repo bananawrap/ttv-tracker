@@ -27,7 +27,7 @@ class TtvTracker():
         self.toast = ToastNotifier()
 
         self.TIMEDIFF = 3
-        self.hour24 = [x for x in range(0,24)]
+        self.hour24 = range(0,24)
         self.WEEKSTR = ["monday","tuesday","wednesday","thursday","friday","saturday","sunday"]
 
         self.main_dir = os.path.split(os.path.abspath(__file__))[0]
@@ -42,15 +42,14 @@ class TtvTracker():
         self.commands = {
         "COMMAND":"DESCRIPTION",
         "input":"allows the user to input new data into the selected streamer's savefile.",
-        "results":"displays a graph of the data saved in the selected savefile.",
-        "todaysresults":"displays a graph of the data saved in the selected savefile for the current day.",
-        "data":"displays the raw data saved in the selected savefile.",
+        "data":"displays the raw data saved and displays a graph of the data in the selected savefile.",
         "track":"allows the user to track the selected Twitch channel and save data about it.",
         "multitrack":"allows the user to track multiple Twitch channels simultaneously.",
         "cls":"clears the console window.",
         "set":"allows the user to select the Twitch channel to track. Usage: set (channelname)",
         "settings":"allows the user to view and modify program settings.",
         "savefiles":"displays a list of available savefiles",
+        "exit":"self explanatory",
         }
 
 
@@ -195,35 +194,53 @@ class TtvTracker():
             return None, None, None
 
 
-    def graph(self, isResList, data):
+    def graph(self, data):
         #uses resList or current day for graph and predictions
 
         currentday, currenthour, currentminute = self.get_time()
         resList = self.update_reslist(data)
         week = data["week"]
         
-        if not isResList:
-            currentdaytxt = self.WEEKSTR[currentday]
-            mode = week[currentday]
-        else:
-            mode = resList
 
+        currentdaytxt = self.WEEKSTR[currentday]
+        currentday = week[currentday]
 
+        fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(nrows=2, ncols=2, figsize=(10,4))
+        plt.subplots_adjust(left=0.1, right=0.9, bottom=0.1, top=0.9, wspace=0.3, hspace=0.4)
 
-        ypoints = mode
     
-        prediction, line, model = self.predict(currenthour,currentminute,mode)
-        print(f"current odds:{prediction}%")
-
-        for j in range(len(self.hour24)):
-            print(f"{str(j)}: {round((model(j)/sum(mode))*100,1)}%")
-
-        print(f"accuracy: {round((r2_score(ypoints, model(self.hour24)))*100)}%")
-        if not isResList:
-            plt.title(currentdaytxt)
-        plt.plot(self.hour24,ypoints)
-        plt.plot(line,model(line))
-        plt.grid()
+        prediction, line, model = self.predict(currenthour,currentminute,resList)
+        
+        ax1.set_title("Total")
+        ax1.plot(self.hour24,resList)
+        ax1.plot(line,model(line))
+        ax1.grid()
+        ax1.set_xticks(range(0,23,2))
+        
+        prediction, line, model = self.predict(currenthour,currentminute,currentday)
+        
+        ax2.set_title(currentdaytxt)
+        ax2.plot(self.hour24,currentday)
+        ax2.plot(line,model(line))
+        ax2.grid()
+        ax2.set_xticks(range(0,23,2))
+        
+        ax3.set_title("streams per day")
+        for i, day in enumerate(week):
+            ax3.bar(i, day)
+        ax3.set_xticks(range(7))
+        ax3.set_xticklabels([x[:3] for x in self.WEEKSTR])
+        ax3.grid(axis="y")
+        
+        ax4.set_title("Accuracy")
+        ax4.bar(0,self.get_accuracy(resList)*100)
+        ax4.bar(1,self.get_accuracy(currentday)*100)
+        ax4.set_xticks((0,1))
+        ax4.set_xticklabels(("Total accuracy", "current day's accuracy"))
+        ax4.set_yticks(range(0,110,10))
+        ax4.set_yticklabels([f"{str(x)}%" for x in range(0,110,10)])
+        ax4.grid(axis="y")
+        
         plt.show()
         
 
@@ -316,10 +333,6 @@ class TtvTracker():
             
     def sync(self, data, channelname, silent=False):
         
-        resList = self.update_reslist(data)
-        totalsum = sum(resList)
-        
-        SEPARATOR = "<SEPARATOR>"
         BUFFER_SIZE = 1024
         
         port = 5785
@@ -332,58 +345,42 @@ class TtvTracker():
         s.connect((self.ips["pi"], port))
         if not silent: print("[+] Connected.")
 
-        s.send(f"{authorization}{SEPARATOR}{channelname}{SEPARATOR}{totalsum}".encode())
+        message = json.dumps({
+            "authorization":authorization,
+            "channelname":channelname,
+            "data":data,
+        })
+
+        s.send(message.encode())
+             
         
-        message = s.recv(BUFFER_SIZE).decode()
+        received = json.loads(s.recv(BUFFER_SIZE).decode())
         
-        if message == "2":
-            received = s.recv(BUFFER_SIZE).decode()
-            filename, filesize = received.split(SEPARATOR)
-            filename = os.path.basename(filename)
-            filesize = int(filesize)
+        if received["option"] == "send_to_client":
             
-            fullname = os.path.join(self.data_dir, filename)
+            received_channelname = received["channelname"]
+            received_data = received["data"]
 
-            if not silent: progress = tqdm.tqdm(range(filesize), f"[+] Receiving {filename}", unit="B", unit_scale=True, unit_divisor=1024)
-            with open(fullname, "wb") as f:
-                while True:
-
-                    bytes_read = s.recv(BUFFER_SIZE)
-                    if not bytes_read:    
-                        break
-
-                    f.write(bytes_read)
-                    if not silent: progress.update(len(bytes_read))
-                    
-                s.close()
-                if not silent: print("")
+            if not silent: print(f"[+] saving {received_channelname}_data.json from the server")
             
-        elif message == "1":
-            fullname = os.path.join(self.data_dir, f'{channelname}_data.json')
-            filesize = os.path.getsize(filename)
+            self.save(received_data,received_channelname)
             
-            s.send(f"{filename}{SEPARATOR}{filesize}".encode())
-            time.sleep(1)
-            if not silent: progress = tqdm.tqdm(range(filesize), f"[+] Sending {filename}", unit="B", unit_scale=True, unit_divisor=1024)
-            
-            with open(fullname, 'rb') as f:
-                while True:
-
-                    bytes_read = f.read(BUFFER_SIZE)
-                    if not bytes_read:
-
-                        break
-
-                    s.sendall(bytes_read)
-
-                    progress.update(len(bytes_read))
             s.close()
             if not silent: print("")
-        elif message == "0":
-            s.send("".encode())
+            
+        elif received["option"] == "send_to_server":
+            
+            if not silent: print(f"[+] sent {received_channelname}_data.json to the server")
+            
             s.close()
-            if not silent: print(f"[+] {channelname} data is already synced")
+            if not silent: print("")
+            
+        elif received["option"] == "synced":
+            s.close()
+            if not silent: print(f"[+] {channelname}_data.json was in sync with the server")
+            if not silent: print("")
             return
+        
         else:
             if not silent: 
                 print(f"[+] server message: {message}")
@@ -395,32 +392,37 @@ class TtvTracker():
         currenthour = currenttime[3]
         currentday = currenttime[6]
         return currentday, currenthour, currentminute
+    
+    def get_stream_info(self, contents):
+        if self.is_live(contents):
+            return json.loads((contents.head.find("script", attrs={"type":"application/ld+json"}).contents)[0])[0]
+            
+
+            
 
     def get_title(self, contents):
         return contents.head.find("meta", attrs={"property":"og:description"})["content"]
          
 
     def get_startdate(self, contents):
-        starthour = ""
-        try:
-            contents = (contents.head.find("script", attrs={"type":"application/ld+json"}).contents)[0]
-            if contents:
-                index = contents.find('startDate":"') #len 12
-                index += 12
-                index = contents.find('T',index)
-                index += 1
-                end_index = contents.find(':',index)
-                for num in range(index,end_index):
-                    starthour += contents[num]
-                starthour = int(starthour)
-            else:
-                return None
-        except Exception:
-            return None
-        else:
-            return starthour
+        if self.is_live(contents):
+            full_time = self.get_stream_info(contents)["publication"]["startDate"]
+            
+            date = full_time.split("T")[0]
+            hour = full_time.split("T")[1].split(":")[0]
+            minute = full_time.split("T")[1].split(":")[1]
+            
+            start_time = {"date": date, 
+                          "hour": hour, 
+                          "minute": minute
+            } 
+            
+            return start_time
+        return None
+        
+            
     
-    def isLive(self, contents):
+    def is_live(self, contents):
         try:
             (contents.head.find("script", attrs={"type":"application/ld+json"}).contents)[0]
             return True
@@ -441,11 +443,12 @@ class TtvTracker():
     def get_stream(self, channelname):
         return BeautifulSoup(requests.get('https://www.twitch.tv/' +channelname).content.decode('utf-8'),"html.parser")
 
-    def get_accuracy(self, data):
-        return r2_score(self.update_reslist(data), self.predict(self.get_time()[1], self.get_time()[2], self.update_reslist(data))[2](self.hour24))
+    def get_accuracy(self, array):
+        return r2_score(array, self.predict(self.get_time()[1], self.get_time()[2], array)[2](self.hour24))
     
     def check_internet(self):
         return self.check_port("google.com",80)
+    
 
     def track(self, data, channelname):
         """
@@ -509,10 +512,14 @@ class TtvTracker():
                 title = self.get_title(contents)
                 
                 #check stream startTime for verification
-                starthour = self.get_startdate(contents)
+                start_time = self.get_startdate(contents)
+                
+                if start_time is not None:
+                    starthour = start_time["hour"]
+
 
                 #see if streamer is online, also avoid misinput if streamed already
-                if self.isLive(contents) and starthour is not None: 
+                if self.is_live(contents) and start_time is not None: 
                     if not live:
                         if not alreadyStreamed[0]:
                             #verifies if the stream has started in the past hour to avoid false positives
@@ -528,9 +535,13 @@ class TtvTracker():
                                 #confirm that the stream is live
                                 live = True
 
-                                #pack the information into a data dictionary and self.save it to (channelname)_data.json
-                                data["week"] = week
-                                data["alreadyStreamed"] = alreadyStreamed
+                                #pack the information into a data dictionary and save it to (channelname)_data.json
+                                data = {
+                                "week":week,
+                                "alreadyStreamed":alreadyStreamed,
+                                "lastStream":start_time,
+                                }
+                                
                                 self.save(data, channelname)
                                 
                                 resList = self.update_reslist(data)
@@ -540,7 +551,7 @@ class TtvTracker():
                                 
                                 #send a telegram message if its enabled
                                 if self.settings["telegram_bot_enabled"]=="True":
-                                    self.bot.send(self.settings["telegram_chatID"], f"{channelname} went live!\nhttps://www.twitch.tv/{channelname}\n{title}")
+                                    self.bot.send(self.settings["telegram_chatID"], f"{channelname} went live!\n{title}\nhttps://www.twitch.tv/{channelname}")
                                 
                                 #show a windows toast
                                 self.toast.show_toast(
@@ -557,12 +568,14 @@ class TtvTracker():
                 #prediction
                 prediction,line,model = self.predict(currenthour,currentminute,resList)
                 
-                if self.isLive(contents):
+                if self.is_live(contents):
                     print(f"{channelname} is live! \ntitle: {title}",end="\r")
                     alreadyStreamed = [True,currentday]
-                    data["week"] = week
-                    data["alreadyStreamed"] = alreadyStreamed
-                    streamEndHour = copy.copy(currenthour)
+                    data = {
+                            "week":week,
+                            "alreadyStreamed":alreadyStreamed,
+                            "lastStream":start_time,
+                    }
                     self.save(data, channelname)
                 
                 elif alreadyStreamed[0] == True and alreadyStreamed[1] == currentday and live == False:
@@ -624,24 +637,38 @@ class TtvTracker():
             title = self.get_title(contents)
                 
                 
-            #check stream startTime for verification
-            starthour = self.get_startdate(contents)
+            #check stream start time
+            start_time = self.get_startdate(contents)
+            
+            if start_time is not None:
+                starthour  = start_time["hour"]
+            
+
 
             #see if streamer is online, also avoid misinput if streamed already
-            if starthour is not None:
-                if self.isLive(contents) and starthour != -1: 
+            if start_time is not None:
+                if self.is_live(contents) and starthour != -1: 
                     if not alreadyStreamed[0]:
+                        
                         #verifies if the stream has started in the past hour to avoid false positives
                         if self.hour24[currenthour-self.TIMEDIFF] == starthour or self.hour24[currenthour+1-self.TIMEDIFF] == starthour:
+                            
                             #log it to the data list
                             week[currentday][currenthour] +=1
+                            
                             #set the already streamed flag to true
                             alreadyStreamed = [True,currentday]
+                            
                             #confirm that the stream is live
                             live = True
-                            #pack the information into a data dictionary and self.save it to (channelname)_data.json
-                            data["week"] = week
-                            data["alreadyStreamed"] = alreadyStreamed
+                            
+                            #pack the information into a data dictionary and save it to (channelname)_data.json
+                            data = {
+                            "week":week,
+                            "alreadyStreamed":alreadyStreamed,
+                            "lastStream":start_time,
+                            }
+
                             self.save(data, channelname)
                                 
                             resList = self.update_reslist(data)
@@ -649,7 +676,7 @@ class TtvTracker():
                              
                             #send a telegram message if its enabled
                             if self.settings["telegram_bot_enabled"]=="True":
-                                    self.bot.send(self.settings["telegram_chatID"], f"{channelname} went live!\nhttps://www.twitch.tv/{channelname}\n{title}")
+                                    self.bot.send(self.settings["telegram_chatID"], f"{channelname} went live!\n{title}\nhttps://www.twitch.tv/{channelname}")
                                 
                                 
                             logging.info(f"{channelname} stream started") # log into log.txt
@@ -668,11 +695,14 @@ class TtvTracker():
             #prediction
             prediction,line,model = self.predict(currenthour,currentminute,resList)
             
-            if self.isLive(contents):
+            if self.is_live(contents):
                 live = True
                 alreadyStreamed = [True,currentday]
-                data["week"] = week
-                data["alreadyStreamed"] = alreadyStreamed
+                data = {
+                "week":week,
+                "alreadyStreamed":alreadyStreamed,
+                "lastStream":start_time,
+                }
                 self.save(data, channelname)
             else:
                 live = False
@@ -764,7 +794,7 @@ class TtvTracker():
                                         "live":streaminfo[2], 
                                         }
                             try:
-                                accuracyrating = accuracyratings[round(self.get_accuracy(streaminfo["data"])*100/25)]
+                                accuracyrating = accuracyratings[round(self.get_accuracy(self.update_reslist(streaminfo["data"]))*100/25)-1]
                             except Exception:
                                 accuracyrating = "none"
                             
@@ -833,9 +863,16 @@ class TtvTracker():
             userinput = input("=> ")
             
             if "set" in userinput.split(" ")[0]:
+                try:
+                    num = int(userinput.split(" ")[1])-1
+                except ValueError:
                     self.settings[userinput.split(" ")[1]] = userinput.split(" ")[2]
                     self.save_settings()
                     message = f"{userinput.split(' ')[1]} set with the value of {userinput.split(' ')[2]}"
+                else:
+                    self.settings[list(self.settings.keys())[num]] = userinput.split(" ")[2]
+                    self.save_settings()
+                    message = f"{list(self.settings.keys())[num]} set with the value of {userinput.split(' ')[2]}"
                 
                 
             elif "rm" in userinput.split(" ")[0]:
@@ -906,14 +943,7 @@ class TtvTracker():
                     
                 elif userinput == "data":
                     self.display_data(data, channelname)
-                    
-                    
-                elif userinput == "todaysresults":
-                    self.graph(False, data)
-                
-                
-                elif userinput == "results":
-                    self.graph(True, data)
+                    self.graph(data)
                 
                 
                 elif userinput == "cls":
@@ -928,7 +958,10 @@ class TtvTracker():
                     print("\nfunctions can be used directly if you have (self.) before them")
                     methods = self.get_methods()
                     for i in range(0,len(methods),2):
-                        print(f"{methods[i]}(){' '*(len('find_savefiles()')-len(methods[i]))}\t{methods[i+1]}()")
+                        try:
+                            print(f"{methods[i]}(){' '*(len('find_savefiles()')-len(methods[i]))}\t{methods[i+1]}()")
+                        except IndexError:
+                            print(f"{methods[i]}()")
                     
                     
                 elif self.findword("set")(userinput.split(" ")[0]):
@@ -936,7 +969,7 @@ class TtvTracker():
                         channelname = userinput.split(" ")[1]
                         data = self.load(channelname)
                         self.settings["channelname"] = channelname
-                        self.savesettings()
+                        self.save_settings()
                         self.save(data, channelname)
                     except IndexError:
                         print("set needs streamer's twitch name")
@@ -966,18 +999,15 @@ class TtvTracker():
                     try:
                         exec(userinput)
                     except Exception as err:
-                        if userinput == "exit":
-                            break
-                        else:
-                            print(f"ran into a problem, try help. error: {err}")
+                        logging.exception(err)
+                        print(f"ran into a problem, try help. error: {err}")
+            except IndexError:
+                print("set needs streamer's twitch name")
                 
             except Exception as err:
                 print(err)
     
-
-                
-                    
-                
+          
 if __name__=="__main__": 
     tracker = TtvTracker()
     tracker.main()
