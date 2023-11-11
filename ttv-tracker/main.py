@@ -11,7 +11,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.metrics import r2_score
 from twitchParser import TwitchParser
-
+from fileHandler import FileHandler
+from server import TtvServer
 
 class TtvTracker():
     def __init__(self) -> None:
@@ -22,10 +23,8 @@ class TtvTracker():
         self.main_dir = os.path.split(os.path.abspath(__file__))[0]
         self.data_dir = os.path.join(self.main_dir, "data")
         
-        self.logo = os.path.join(self.data_dir, 'pythowo.ico')
-        self.soundalert = os.path.join(self.data_dir, 'auughhh.mp3')
         
-        self.settings = self.load_settings()
+        fh.settings = fh.load_settings()
         
         
         self.commands = {
@@ -53,115 +52,6 @@ class TtvTracker():
 
 
 
-    def make_save(self):
-        monday =    [0 for x in range(0,24)]
-        tuesday =   [0 for x in range(0,24)]
-        wednesday = [0 for x in range(0,24)]
-        thursday =  [0 for x in range(0,24)]
-        friday =    [0 for x in range(0,24)]
-        saturday =  [0 for x in range(0,24)]
-        sunday =    [0 for x in range(0,24)]
-        week = [monday,tuesday,wednesday,thursday,friday,saturday,sunday]
-        
-        alreadyStreamed = [False,0]
-        
-        lastStream = {
-            "date":   "0000-00-00", 
-            "hour":   "00", 
-            "minute": "00"
-            }
-        
-        data = {
-                "week": week,
-                "alreadyStreamed": alreadyStreamed,
-                "lastStream": lastStream
-                }
-        
-        return data
-    
-    def make_settings(self):
-        self.settings = {
-            "channelname": f"{input('channelname: ')}",
-            "authorization": "ChangeMe",
-            "telegram_bot_enabled": False,
-            "telegram_bot_API": "",
-            "telegram_chatID": "",       
-            "server_ip": "0.0.0.0",
-            "timediff": "0",
-        }
-        self.save_settings()
-
-    def load(self, channelname): #load savefile function
-        try:
-            fullname = os.path.join(self.data_dir, f'{channelname}_data.json')
-            with open(fullname, 'r') as file:
-                data = json.load(file)
-        except Exception as err:
-            logging.error(err)
-            print(f"no savefile found for {channelname}")
-            if input(f"make a new save for {channelname}? y/n : ") == "y":
-                self.save(self.make_save(), channelname)
-                try:
-                    with open(fullname, 'r') as file:
-                        data = json.load(file)
-                except Exception as err:
-                    logging.error(err)
-                    print(err)
-                else:
-                    return data
-            else:
-                return None
-        
-        else: 
-            return data
-
-    
-    def save(self, data, channelname):
-        fullname = os.path.join(self.data_dir, f'{channelname}_data.json')
-        with open(fullname, 'w') as file:
-            json.dump(data, file)
-            
-            
-    def save_settings(self):
-        for setting in self.settings:
-            if self.settings[setting] in self.userscripts:
-                isUserscript = True
-            else:
-                isUserscript = False
-            self.settings[setting] = [self.settings[setting], isUserscript]
-        fullname = os.path.join(self.main_dir, 'settings.json')
-        with open(fullname, "w") as file:
-            json.dump(self.settings,file)
-        self.load_settings()
-            
-            
-    def load_settings(self):
-        try:
-            self.userscripts = []
-            fullname = os.path.join(self.main_dir, 'settings.json')
-            with open(fullname, "r") as file:
-                self.settings = json.load(file)
-            try: 
-                for setting in self.settings:
-                    if isinstance(self.settings[setting], list):
-                        if self.settings[setting][1]:
-                            self.userscripts.append(self.settings[setting][0])
-                        self.settings[setting] = self.settings[setting][0]
-            except Exception:
-                pass
-            
-            try:
-
-                if self.settings["telegram_bot_enabled"]=="True":
-                    self.bot = TelegramBot(self.settings["telegram_bot_API"])
-            except Exception as err:
-                logging.error(err)
-
-        except Exception as err:
-            logging.error(err),
-            self.make_settings()
-            with open(fullname, "r") as file:
-                self.settings = json.load(file)
 
 
     def set_target(self, channelname): 
@@ -169,8 +59,8 @@ class TtvTracker():
         try:
             userinput = {"channelname":input("set target: ")}
             if userinput["channelname"] != "":
-                self.save_settings(userinput)
-                return self.load_settings()
+                fh.save_settings(userinput)
+                return fh.load_settings()
 
             else:
                 raise ValueError("empty name")
@@ -305,7 +195,7 @@ class TtvTracker():
             
             if "set" == command:
                 data["week"][selected_day][selected_hour] = value
-                self.save(data, )
+                fh.save(data, )
                 
                 
             elif "add" == command:
@@ -313,9 +203,9 @@ class TtvTracker():
             
             elif "userscript" == command:
                 if len(selected_hour) != 0:
-                    self.settings[selected_day] = selected_hour
-                    self.userscripts = selected_hour
-                    self.save_settings()
+                    fh.settings[selected_day] = selected_hour
+                    fh.userscripts = selected_hour
+                    fh.save_settings()
                     message = f"{selected_day} set with the value of {selected_hour}"
                 else:
                     message = f"invalid input\n"
@@ -360,12 +250,12 @@ class TtvTracker():
         
         BUFFER_SIZE = 1024
         
-        port = 5785
+        port = fh.settings["port"]
         
-        authorization = self.settings["authorization"]
+        authorization = fh.settings["authorization"]
         
         s = socket.socket()
-        server = f"{self.settings['server_ip']}"
+        server = f"{fh.settings['server_ip']}"
         
         if not silent: print(f"[+] Connecting to {server}:{port}")
         s.connect((server, port))
@@ -389,7 +279,7 @@ class TtvTracker():
 
             if not silent: print(f"[+] saving {received_channelname}_data.json from the server")
             
-            self.save(received_data,received_channelname)
+            fh.save(received_data,received_channelname)
             
             s.close()
             if not silent: print("")
@@ -413,7 +303,7 @@ class TtvTracker():
                 time.sleep(5)
                 
     def multisync(self, listeners):
-        server = f"{self.settings['server_ip']}"
+        server = f"{fh.settings['server_ip']}"
         if self.check_port(server,5785):
             for streamer in listeners:
                 try:
@@ -454,8 +344,8 @@ class TtvTracker():
         return self.check_port("google.com",80)
     
     def telegram_alert(self, channelname, title):
-        if self.settings["telegram_bot_enabled"]=="True":
-                self.bot.send(self.settings["telegram_chatID"], f"{channelname} went live!\n{title}\nhttps://www.twitch.tv/{channelname}")
+        if fh.settings["telegram_bot_enabled"]=="True":
+                self.bot.send(fh.settings["telegram_chatID"], f"{channelname} went live!\n{title}\nhttps://www.twitch.tv/{channelname}")
     
     def register_broadcast(self, data, channelname, contents=None):
 
@@ -480,7 +370,7 @@ class TtvTracker():
         "lastStream":start_time,
         }
 
-        self.save(data, channelname)
+        fh.save(data, channelname)
             
         self.telegram_alert(channelname, title)
             
@@ -515,13 +405,13 @@ class TtvTracker():
             if alreadyStreamed[0] == True and alreadyStreamed[1] != currentday:
                 alreadyStreamed = [False,alreadyStreamed[1]]
                 data["alreadyStreamed"] = alreadyStreamed
-                self.save(data, channelname)
+                fh.save(data, channelname)
                 
             contents = tp.get_stream(channelname)
 
             start_time = tp.get_startdate(contents)
 
-            timediff = self.settings['timediff']
+            timediff = fh.settings['timediff']
 
             if start_time is not None:
                 if tp.is_live(contents) and start_time["hour"] != -1: 
@@ -546,7 +436,7 @@ class TtvTracker():
                 "alreadyStreamed":alreadyStreamed,
                 "lastStream":start_time,
                 }
-                self.save(data, channelname)
+                fh.save(data, channelname)
             else:
                 live = False
             
@@ -573,14 +463,14 @@ class TtvTracker():
                 if "add" in userinput.split(" ")[0]:
                     if not self.findword("all")(userinput):
                         channelname = userinput.split(" ")[1]
-                        listeners[channelname] = self.load(channelname)      
+                        listeners[channelname] = fh.load(channelname)      
                         if listeners[channelname]!=None: 
                             message = f"{channelname} added"
                         else:
                             listeners.pop(channelname)
                     else:
                         for channelname in self.find_savefiles():
-                            listeners[channelname] = self.load(channelname)
+                            listeners[channelname] = fh.load(channelname)
                             message += f"{channelname} added\n"
                     
                     
@@ -603,7 +493,7 @@ class TtvTracker():
                 elif "play" in userinput or autoplay:
                     if autoplay:
                         for channelname in self.find_savefiles():
-                            listeners[channelname] = self.load(channelname)
+                            listeners[channelname] = fh.load(channelname)
                             message += f"{channelname} added\n"
                         autoplay = False
                     message = ""
@@ -619,7 +509,7 @@ class TtvTracker():
                             print(f"{message}")
                             
                             for streamer in listeners:
-                                listeners[streamer] = self.load(streamer)
+                                listeners[streamer] = fh.load(streamer)
 
                             for streamer in listeners:
                                 streaminfo = self.check_stream(listeners[streamer], streamer)
@@ -634,7 +524,7 @@ class TtvTracker():
                                 except Exception:
                                     accuracyrating = "none"
                                 
-                                self.save(streaminfo["data"], streamer)
+                                fh.save(streaminfo["data"], streamer)
                                 print(f"{'-'*os.get_terminal_size()[0]}")
                                 print(f"streamer: {streamer}")
                                 print(f"live: {streaminfo['live']}")
@@ -688,7 +578,7 @@ class TtvTracker():
                     results.append(file.replace(identifier,""))
         savefiles = {}
         for streamer in results:
-            savefiles[streamer] = self.load(streamer)
+            savefiles[streamer] = fh.load(streamer)
         return savefiles
 
     def findword(self, w):
@@ -701,11 +591,11 @@ class TtvTracker():
                 self.clear()
                 print("settings manager\n")
                 print(f"{message}")
-                for i, setting in enumerate(self.settings):
-                    if self.settings[setting] in self.userscripts:
-                        print(f"{i+1}. {setting}: {self.settings[setting]} (userscript)")
+                for i, setting in enumerate(fh.settings):
+                    if fh.settings[setting] in fh.userscripts:
+                        print(f"{i+1}. {setting}: {fh.settings[setting]} (userscript)")
                     else:
-                        print(f"{i+1}. {setting}: {self.settings[setting]}")
+                        print(f"{i+1}. {setting}: {fh.settings[setting]}")
                 message = ""
                 print("")
                 userinput = input("==> ")
@@ -720,24 +610,24 @@ class TtvTracker():
                 
                 if "set" == command:
                     if type(setting) == int:
-                        self.settings[list(self.settings.keys())[setting]] = value
-                        self.save_settings()
-                        message = f"{list(self.settings.keys())[setting]} set with the value of {value}"
+                        fh.settings[list(fh.settings.keys())[setting]] = value
+                        fh.save_settings()
+                        message = f"{list(fh.settings.keys())[setting]} set with the value of {value}"
                     else:
-                        self.settings[setting] = value
-                        self.save_settings()
+                        fh.settings[setting] = value
+                        fh.save_settings()
                         message = f"{setting} set with the value of {value}"
                     
                     
                 elif "rm" == command:
-                    self.settings.pop(setting)
+                    fh.settings.pop(setting)
                     message = f"{setting} removed"
                 
                 elif "userscript" == command:
                     if len(value) != 0:
-                        self.settings[setting] = value
-                        self.userscripts = value
-                        self.save_settings()
+                        fh.settings[setting] = value
+                        fh.userscripts = value
+                        fh.save_settings()
                         message = f"{setting} set with the value of {value}"
                     else:
                         message = f"invalid input\n"
@@ -770,7 +660,7 @@ timediff: timezone offset.\n
             
     
     def run_userscript(self):
-        for script in self.userscripts:
+        for script in fh.userscripts:
             try:
                 exec(script)
             except Exception as err:
@@ -789,14 +679,21 @@ timediff: timezone offset.\n
         logging.getLogger("urllib3.poolmanager").disabled = True
         logging.getLogger("requests").disabled = True
 
-        self.load_settings()
-        channelname = self.settings["channelname"]
+        fh.load_settings()
+        channelname = fh.settings["channelname"]
         
         self.run_userscript()
+
+        try:
+
+            if fh.settings["telegram_bot_enabled"]=="True":
+                self.bot = TelegramBot(fh.settings["telegram_bot_API"])
+        except Exception as err:
+            logging.error(err)
             
         while True:
             try:
-                data = self.load(channelname)
+                data = fh.load(channelname)
                 
                 userinput = input("=> ")
                 if userinput == "input":
@@ -829,12 +726,12 @@ timediff: timezone offset.\n
                 elif self.findword("set")(userinput.split(" ")[0]):
                     try:
                         name = userinput.split(" ")[1]
-                        data = self.load(name)
+                        data = fh.load(name)
                         if data:
                             channelname = name
-                            self.settings["channelname"] = channelname
-                            self.save_settings()
-                            self.save(data, channelname)
+                            fh.settings["channelname"] = channelname
+                            fh.save_settings()
+                            fh.save(data, channelname)
                     except IndexError:
                         print("set needs streamer's name")
 
@@ -855,6 +752,9 @@ timediff: timezone offset.\n
                     
                 elif userinput == "sync":
                     self.multisync(self.find_savefiles())
+
+                elif userinput == "server":
+                    server.main()
                 
                 
                 #simple console
@@ -879,6 +779,8 @@ timediff: timezone offset.\n
     
           
 if __name__=="__main__": 
-    tracker = TtvTracker()
+    fh = FileHandler()
+    server = TtvServer(fh)
     tp = TwitchParser()
+    tracker = TtvTracker()
     tracker.main()
