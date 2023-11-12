@@ -247,60 +247,62 @@ class TtvTracker():
     
             
     def sync(self, data, channelname, silent=False):
-        
-        BUFFER_SIZE = 1024
-        
-        port = fh.settings["port"]
-        
-        authorization = fh.settings["authorization"]
-        
-        s = socket.socket()
-        server = f"{fh.settings['server_ip']}"
-        
-        if not silent: print(f"[+] Connecting to {server}:{port}")
-        s.connect((server, port))
-        if not silent: print("[+] Connected.")
+        try:
+            BUFFER_SIZE = 1024
+            
+            port = int(fh.settings["port"])
+            
+            authorization = fh.settings["authorization"]
+            
+            s = socket.socket()
+            server = f"{fh.settings['server_ip']}"
+            
+            if not silent: print(f"[+] Connecting to {server}:{port}")
+            s.connect((server, port))
+            if not silent: print("[+] Connected.")
 
-        message = json.dumps({
-            "authorization":authorization,
-            "channelname":channelname,
-            "data":data,
-        })
+            message = json.dumps({
+                "authorization":authorization,
+                "channelname":channelname,
+                "data":data,
+            })
 
-        s.send(message.encode())
-             
-        
-        received = json.loads(s.recv(BUFFER_SIZE).decode())
-        
-        if received["option"] == "send_to_client":
+            s.send(message.encode())
+                
             
-            received_channelname = received["channelname"]
-            received_data = received["data"]
+            received = json.loads(s.recv(BUFFER_SIZE).decode())
+            
+            if received["option"] == "send_to_client":
+                
+                received_channelname = received["channelname"]
+                received_data = received["data"]
 
-            if not silent: print(f"[+] saving {received_channelname}_data.json from the server")
+                if not silent: print(f"[+] saving {received_channelname}_data.json from the server")
+                
+                fh.save(received_data,received_channelname)
+                
+                s.close()
+                if not silent: print("")
+                
+            elif received["option"] == "send_to_server":
+                
+                if not silent: print(f"[+] sent {received_channelname}_data.json to the server")
+                
+                s.close()
+                if not silent: print("")
+                
+            elif received["option"] == "synced":
+                s.close()
+                if not silent: print(f"[+] {channelname}_data.json was in sync with the server")
+                if not silent: print("")
+                return
             
-            fh.save(received_data,received_channelname)
-            
-            s.close()
-            if not silent: print("")
-            
-        elif received["option"] == "send_to_server":
-            
-            if not silent: print(f"[+] sent {received_channelname}_data.json to the server")
-            
-            s.close()
-            if not silent: print("")
-            
-        elif received["option"] == "synced":
-            s.close()
-            if not silent: print(f"[+] {channelname}_data.json was in sync with the server")
-            if not silent: print("")
-            return
-        
-        else:
-            if not silent: 
-                print(f"[+] server message: {message}")
-                time.sleep(5)
+            else:
+                if not silent: 
+                    print(f"[+] server message: {received}")
+                    time.sleep(5)
+        except Exception as err:
+            print(f"[+] Error: {err}")
                 
     def multisync(self, listeners):
         server = f"{fh.settings['server_ip']}"
@@ -643,7 +645,7 @@ usage: command + settingname/index + value\n
 usercript lets you run a piece of code before the mainloop\n 
 \nexplanations for some of the variables:\n
 channelname: is the default channel to track. Can be changed with the set command outside of settings\n
-authorization: the password used to communicate with a server. Note the server code isn't yet public\n
+authorization: the password used to communicate with a server.\n
 timediff: timezone offset.\n
 
 \ncommands:\n

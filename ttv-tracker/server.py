@@ -36,13 +36,14 @@ class TtvServer():
                     client_message = json.loads(client_message)
                     client_authorization = client_message["authorization"]
                     if authorized_ips[addr[0]] == client_authorization:
+                        print(f"[+] authorization accepted\n")
                         
                         
                         client_channelname = client_message["channelname"]
+                        print(f"[+] requested channel: {client_channelname}")
                         client_data = client_message["data"]
                         
                         client_totalsum = sum(self.update_reslist(client_data))
-                        print(f"[+] authorization accepted\n[+] requested channel: {client_channelname}")
                         if len("") != len(client_channelname):
                             data = self.fh.load(client_channelname)
                             
@@ -104,9 +105,11 @@ class TtvServer():
                         else:
                             c.close()
                     else:
+                        print(f"Unauthorized")
                         c.send("Unauthorized".encode())
                         c.close()
                 else:
+                    print(f"[+] No data")
                     c.send("Unauthorized".encode())
                     c.close()
                 
