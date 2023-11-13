@@ -6,10 +6,17 @@ import socket
 import re
 import inspect
 
+# NOTE: sklearn is optional since i can't get it working on a raspberrypi
+try:
+    from sklearn.metrics import r2_score
+    accuracy_enabled = True
+except ModuleNotFoundError:
+    accuracy_enabled = False
+    print("accuracy feature disabled")
+
 from telegramBot import TelegramBot
 import numpy as np
 import matplotlib.pyplot as plt
-from sklearn.metrics import r2_score
 from twitchParser import TwitchParser
 from fileHandler import FileHandler
 from server import TtvServer
@@ -29,15 +36,16 @@ class TtvTracker():
         
         self.commands = {
         "COMMAND":"DESCRIPTION",
-        "input":"input new data into the selected streamer's savefile.",
-        "data":"displays the raw data saved and displays a graph of the data in the selected savefile.",
-        "track":"track multiple Twitch channels simultaneously.",
-        "cls":"clears the console window.",
-        "set":"select the Twitch channel to track. Usage: set (channelname)",
-        "settings":"view and modify program settings.",
-        "savefiles":"displays a list of available savefiles",
-        "sync":"syncs the local savefiles with the server.",
-        "exit":"self explanatory",
+        "input":"Input new data into the selected streamer's savefile.",
+        "data":"Displays the raw data saved and displays a graph of the data in the selected savefile.",
+        "track":"Track multiple Twitch channels simultaneously.",
+        "cls":"Clears the console window.",
+        "set":"Select the Twitch channel to track. Usage: set (channelname)",
+        "settings":"View and modify program settings.",
+        "savefiles":"Displays a list of available savefiles",
+        "sync":"Syncs the local savefiles with the server.",
+        "server":"Runs the server code, although i recommend running it from something like crontab and scheduling server.py.",
+        "exit":"Self explanatory",
         }
 
 
@@ -123,15 +131,17 @@ class TtvTracker():
         ax3.set_xticks(range(7))
         ax3.set_xticklabels([x[:3] for x in self.WEEKSTR])
         ax3.grid(axis="y")
-        
-        ax4.set_title("Accuracy")
-        ax4.bar(0,self.get_accuracy(resList)*100)
-        ax4.bar(1,self.get_accuracy(currentday)*100)
-        ax4.set_xticks((0,1))
-        ax4.set_xticklabels(("Total accuracy", "Current day's accuracy"))
-        ax4.set_yticks(range(0,110,10))
-        ax4.set_yticklabels([f"{str(x)}%" for x in range(0,110,10)])
-        ax4.grid(axis="y")
+        if accuracy_enabled:
+            ax4.set_title("Accuracy")
+            ax4.bar(0,self.get_accuracy(resList)*100)
+            ax4.bar(1,self.get_accuracy(currentday)*100)
+            ax4.set_xticks((0,1))
+            ax4.set_xticklabels(("Total accuracy", "Current day's accuracy"))
+            ax4.set_yticks(range(0,110,10))
+            ax4.set_yticklabels([f"{str(x)}%" for x in range(0,110,10)])
+            ax4.grid(axis="y")
+        else:
+            ax4.set_title("Accuracy is disabled")
         
         plt.show()
         
@@ -195,35 +205,23 @@ class TtvTracker():
             
             if "set" == command:
                 data["week"][selected_day][selected_hour] = value
-                fh.save(data, )
+                fh.save(data, channelname)
                 
                 
             elif "add" == command:
-                data["week"][selected_day][selected_hour] =+ 1
+                data["week"][selected_day][selected_hour] =+ value
             
-            elif "userscript" == command:
-                if len(selected_hour) != 0:
-                    fh.settings[selected_day] = selected_hour
-                    fh.userscripts = selected_hour
-                    fh.save_settings()
-                    message = f"{selected_day} set with the value of {selected_hour}"
-                else:
-                    message = f"invalid input\n"
-                    message += f"userscripts get run in initilation\n"
-                    message += f"syntax: userscript group name value"
             
             elif "back" == command:
                 break
                 
             elif "help" == command:
                 message += "usage: command + settingname + value\n"
-                message += "usercript lets you run a piece of code before the mainloop\n"
                 message += "commands:\n"
                 for x in [
                 "set",
                 "rm",
                 "back",  
-                "userscript"
                 ]: message += f"{x}\n"
                 
             
@@ -340,7 +338,10 @@ class TtvTracker():
 
 
     def get_accuracy(self, array):
-        return r2_score(array, self.predict(self.get_time()[1], self.get_time()[2], array)[2](self.hour24))
+        if accuracy_enabled:
+            return r2_score(array, self.predict(self.get_time()[1], self.get_time()[2], array)[2](self.hour24))
+        else:
+            return 0.0
     
     def check_internet(self):
         return self.check_port("google.com",80)
@@ -351,7 +352,7 @@ class TtvTracker():
     
     def register_broadcast(self, data, channelname, contents=None):
 
-        if contents is None:
+        if contents is not None:
             start_time = tp.get_startdate(contents)
             title = tp.get_title(contents)
         
@@ -460,10 +461,12 @@ class TtvTracker():
                 message = ""
                 print("")
                 userinput = ""
+                add_all = False
                 if not autoplay: userinput = input("==> ")
                 
                 if "add" in userinput.split(" ")[0]:
                     if not self.findword("all")(userinput):
+                        add_all = False
                         channelname = userinput.split(" ")[1]
                         listeners[channelname] = fh.load(channelname)      
                         if listeners[channelname]!=None: 
@@ -471,6 +474,7 @@ class TtvTracker():
                         else:
                             listeners.pop(channelname)
                     else:
+                        add_all = True
                         for channelname in self.find_savefiles():
                             listeners[channelname] = fh.load(channelname)
                             message += f"{channelname} added\n"
@@ -509,6 +513,11 @@ class TtvTracker():
                             print("tracking (ctrl + c) to pause")
                             print(f"active listeners: {len(listeners)}")
                             print(f"{message}")
+
+                            if add_all and len(self.find_savefiles()) > len(listeners):
+                                for channelname in self.find_savefiles():
+                                    listeners[channelname] = fh.load(channelname)
+
                             
                             for streamer in listeners:
                                 listeners[streamer] = fh.load(streamer)
@@ -522,7 +531,10 @@ class TtvTracker():
                                             }
                                 try:
 
-                                    accuracyrating = accuracyratings[round(self.get_accuracy(self.update_reslist(streaminfo["data"]))*100/25)-1]
+                                    if accuracy_enabled:
+                                        accuracyrating = accuracyratings[round(self.get_accuracy(self.update_reslist(streaminfo["data"]))*100/25)-1]
+                                    else:
+                                        accuracyrating = "disabled"
                                 except Exception:
                                     accuracyrating = "none"
                                 

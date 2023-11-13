@@ -69,7 +69,7 @@ class TtvServer():
                             
                             c.send(message.encode())
                             
-                            print(f"sent {client_channelname}_data.json to {addr[0]}")
+                            print(f"[+] sent {client_channelname}_data.json to {addr[0]}")
                             
                             c.close()
 
@@ -85,7 +85,7 @@ class TtvServer():
                             
                             self.fh.save(client_data,client_channelname)
                             
-                            print(f"saved {client_channelname}_data.json from {addr[0]}")
+                            print(f"[+] saved {client_channelname}_data.json from {addr[0]}")
                             
                             c.close()
                         
@@ -105,7 +105,7 @@ class TtvServer():
                         else:
                             c.close()
                     else:
-                        print(f"Unauthorized")
+                        print(f"[+] Unauthorized")
                         c.send("Unauthorized".encode())
                         c.close()
                 else:
