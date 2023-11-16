@@ -6,13 +6,6 @@ import socket
 import re
 import inspect
 
-# NOTE: sklearn is optional since i can't get it working on a raspberrypi
-try:
-    from sklearn.metrics import r2_score
-    accuracy_enabled = True
-except ModuleNotFoundError:
-    accuracy_enabled = False
-    print("accuracy feature disabled")
 
 from telegramBot import TelegramBot
 import numpy as np
@@ -23,6 +16,15 @@ from server import TtvServer
 
 class TtvTracker():
     def __init__(self) -> None:
+
+        # NOTE: sklearn is optional since i can't get it working on a raspberrypi
+        try:
+            from sklearn.metrics import r2_score
+            self.r2_score = r2_score
+            self.accuracy_enabled = True
+        except ModuleNotFoundError:
+            self.accuracy_enabled = False
+            print("accuracy feature disabled")
 
         self.hour24 = range(0,24)
         self.WEEKSTR = ["monday","tuesday","wednesday","thursday","friday","saturday","sunday"]
@@ -42,7 +44,7 @@ class TtvTracker():
         "cls":"Clears the console window.",
         "set":"Select the Twitch channel to track. Usage: set (channelname)",
         "settings":"View and modify program settings.",
-        "savefiles":"Displays a list of available savefiles",
+        "savefiles":"Displays the list of available savefiles",
         "sync":"Syncs the local savefiles with the server.",
         "server":"Runs the server code, although i recommend running it from something like crontab and scheduling server.py.",
         "exit":"Self explanatory",
@@ -52,7 +54,7 @@ class TtvTracker():
         
     
     """
-    this code is for predicting the probability of a streamer going live at a certain time of day
+    This code is for predicting the probability of a streamer going live at a certain time of day
     it uses a polynomial regression model to predict the probability of the stream starting
     the model is trained on data from the streamer's stream history
     """
@@ -131,7 +133,7 @@ class TtvTracker():
         ax3.set_xticks(range(7))
         ax3.set_xticklabels([x[:3] for x in self.WEEKSTR])
         ax3.grid(axis="y")
-        if accuracy_enabled:
+        if self.accuracy_enabled:
             ax4.set_title("Accuracy")
             ax4.bar(0,self.get_accuracy(resList)*100)
             ax4.bar(1,self.get_accuracy(currentday)*100)
@@ -338,8 +340,8 @@ class TtvTracker():
 
 
     def get_accuracy(self, array):
-        if accuracy_enabled:
-            return r2_score(array, self.predict(self.get_time()[1], self.get_time()[2], array)[2](self.hour24))
+        if self.accuracy_enabled:
+            return self.r2_score(array, self.predict(self.get_time()[1], self.get_time()[2], array)[2](self.hour24))
         else:
             return 0.0
     
@@ -414,7 +416,7 @@ class TtvTracker():
 
             start_time = tp.get_startdate(contents)
 
-            timediff = fh.settings['timediff']
+            timediff = int(fh.settings['timediff'])
 
             if start_time is not None:
                 if tp.is_live(contents) and start_time["hour"] != -1: 
@@ -498,6 +500,7 @@ class TtvTracker():
                 
                 elif "play" in userinput or autoplay:
                     if autoplay:
+                        add_all = True
                         for channelname in self.find_savefiles():
                             listeners[channelname] = fh.load(channelname)
                             message += f"{channelname} added\n"
@@ -531,7 +534,7 @@ class TtvTracker():
                                             }
                                 try:
 
-                                    if accuracy_enabled:
+                                    if self.accuracy_enabled:
                                         accuracyrating = accuracyratings[round(self.get_accuracy(self.update_reslist(streaminfo["data"]))*100/25)-1]
                                     else:
                                         accuracyrating = "disabled"
@@ -617,8 +620,6 @@ class TtvTracker():
                 try:
                     setting = userinput.split(" ")[1]
                     value   = userinput.split(" ")[2:]
-                    if isinstance(value, list):
-                        value = value[0]
                 except IndexError:
                     pass
                 
@@ -779,7 +780,7 @@ timediff: timezone offset.\n
                         exec(userinput)
                     except Exception as err:
                         logging.exception(err)
-                        print(f"ran into a problem, try help. error: {err}")
+                        print(f"ran into a problem, try help. Error: {err}")
 
             except KeyboardInterrupt:
                 print("")
