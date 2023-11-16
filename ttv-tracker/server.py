@@ -126,4 +126,7 @@ class TtvServer():
                 print(err)
 
 if __name__=="__main__": 
-    TtvServer.main()
+    from fileHandler import FileHandler
+    fh = FileHandler()
+    fh.load_settings()
+    TtvServer(fh).main()
