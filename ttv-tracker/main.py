@@ -407,7 +407,7 @@ class TtvTracker():
             currentday, currenthour, currentminute = self.get_time()
 
             #updates alreadyStreamed to current day
-            if alreadyStreamed[0] == True and alreadyStreamed[1] != currentday:
+            if alreadyStreamed[0] == True and alreadyStreamed[1] != currentday and not tp.is_live(contents):
                 alreadyStreamed = [False,alreadyStreamed[1]]
                 data["alreadyStreamed"] = alreadyStreamed
                 fh.save(data, channelname)
@@ -419,10 +419,10 @@ class TtvTracker():
             timediff = int(fh.settings['timediff'])
 
             if start_time is not None:
-                if tp.is_live(contents) and start_time["hour"] != -1: 
+                if tp.is_live(contents):
                     if not alreadyStreamed[0]:
                         #verifies if the stream has started in the past hour to avoid false positives
-                        if self.hour24[currenthour-timediff] == start_time["hour"] or self.hour24[currenthour+1-timediff] == start_time["hour"]:
+                        if self.hour24[currenthour-timediff] == start_time["hour"] or self.hour24[currenthour+1-timediff] == start_time["hour"] or True: # NOTE: disabled for now. It's causing problems
                             self.register_broadcast(data, contents)
                             live = True
 
@@ -542,7 +542,12 @@ class TtvTracker():
                                     accuracyrating = "none"
                                 
                                 fh.save(streaminfo["data"], streamer)
-                                print(f"{'-'*os.get_terminal_size()[0]}")
+
+                                try:
+                                    print(f"{'-'*os.get_terminal_size()[0]}")
+                                except Exception:
+                                    print("")
+
                                 print(f"streamer: {streamer}")
                                 print(f"live: {streaminfo['live']}")
                                 if streaminfo["live"]:
